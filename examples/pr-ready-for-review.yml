@@ -1,0 +1,35 @@
+# Run a full agent review when a pull request is marked ready for review
+# (i.e. undrafted), and when it first opens as non-draft.
+name: PR agent review
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    # Skip drafts on `opened`; ready_for_review only fires when leaving draft.
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ai-outfitter/actions@v1
+        with:
+          profile: reviewer
+          profile-source: my-org/outfitter-catalog
+          profile-source-ref: v1.2.0
+          # Reference the PR by number; let the agent fetch title/body/diff
+          # with `gh` so untrusted PR text never becomes workflow code.
+          prompt: >-
+            Review pull request #${{ github.event.pull_request.number }} in
+            ${{ github.repository }}. Read it with `gh pr view` and
+            `gh pr diff`, focusing on correctness bugs and security issues.
+            Post your review as a single PR comment via `gh pr comment`,
+            leading with a one-paragraph summary followed by file:line findings.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

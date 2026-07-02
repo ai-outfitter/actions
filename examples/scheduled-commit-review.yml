@@ -1,0 +1,34 @@
+# Review the commits that landed on main since the last run, on a cron.
+# The agent reads recent history and files an issue when something needs attention.
+name: Scheduled commit review
+on:
+  schedule:
+    - cron: "0 6 * * 1-5" # 06:00 UTC, weekdays
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ai-outfitter/actions@v1
+        with:
+          profile: reviewer
+          profile-source: my-org/outfitter-catalog
+          profile-source-ref: v1.2.0
+          prompt: >-
+            Review the commits on the default branch of ${{ github.repository }}
+            from the last 24 hours (`git log --since="24 hours ago" -p`).
+            Look for correctness bugs, security issues, and risky changes.
+            If you find anything worth a human's attention, open a single issue
+            with `gh issue create` titled "Commit review: <date>" summarizing
+            the findings with commit SHAs. If everything looks fine, print
+            "No findings" and do not open an issue.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

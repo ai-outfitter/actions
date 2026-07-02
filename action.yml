@@ -1,0 +1,149 @@
+name: Run Outfitter Profile
+description: >-
+  Run an Outfitter profile non-interactively (pi --print mode) inside a GitHub
+  Actions workflow. Use it to build your own scheduled commit reviewer, PR
+  reviewer, or task-completing agent from any workflow trigger.
+author: ai-outfitter
+branding:
+  icon: compass
+  color: orange
+
+inputs:
+  prompt:
+    description: >-
+      The prompt passed to the agent in print mode. The agent runs headless,
+      does its work, prints its result, and exits.
+    required: true
+  profile:
+    description: Outfitter profile id to run (passed as `outfitter run --profile`).
+    required: true
+  profile-source:
+    description: >-
+      Optional profile catalog to make the profile available. Accepts an
+      `owner/repo` GitHub shorthand, any git-cloneable URI, or a path inside
+      the checked-out repository (e.g. `.outfitter/profiles`).
+    required: false
+    default: ""
+  profile-source-ref:
+    description: >-
+      Optional tag, branch, or commit to pin a remote profile-source to.
+      Strongly recommended for catalogs you do not own — an unpinned source
+      runs whatever the catalog publishes next.
+    required: false
+    default: ""
+  agent:
+    description: "Agent adapter to launch: pi or claude."
+    required: false
+    default: pi
+  github-token:
+    description: >-
+      Token exported as GH_TOKEN / GITHUB_TOKEN for the agent's `gh` and `git`
+      calls. Defaults to the workflow's installation token; pass a fine-grained
+      PAT from a dedicated machine account to have the agent comment, push, or
+      open PRs under that account. See docs/token-permissions.md and
+      docs/bot-account.md before widening this.
+    required: false
+    default: ${{ github.token }}
+  git-user-name:
+    description: Git author/committer name for any commits the agent makes.
+    required: false
+    default: ""
+  git-user-email:
+    description: Git author/committer email for any commits the agent makes.
+    required: false
+    default: ""
+  outfitter-version:
+    description: "@ai-outfitter/outfitter version to install."
+    required: false
+    default: latest
+  strict:
+    description: Fail instead of warning when profile controls cannot be translated by the adapter.
+    required: false
+    default: "false"
+  working-directory:
+    description: Directory the agent runs in.
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - name: Install Outfitter
+      shell: bash
+      run: npm install -g "@ai-outfitter/outfitter@${{ inputs.outfitter-version }}"
+
+    - name: Configure Outfitter settings
+      shell: bash
+      env:
+        OUTFITTER_PROFILE: ${{ inputs.profile }}
+        OUTFITTER_AGENT: ${{ inputs.agent }}
+        PROFILE_SOURCE: ${{ inputs.profile-source }}
+        PROFILE_SOURCE_REF: ${{ inputs.profile-source-ref }}
+      run: |
+        # Classify the profile source: a directory in the checkout -> path,
+        # a git URI -> uri, an owner/repo shorthand -> github.
+        source_kind=""
+        if [ -n "$PROFILE_SOURCE" ]; then
+          if [ -e "$PROFILE_SOURCE" ] || [ -e "$GITHUB_WORKSPACE/$PROFILE_SOURCE" ]; then
+            source_kind="path"
+          else
+            case "$PROFILE_SOURCE" in
+              *://*|git+*) source_kind="uri" ;;
+              */*) source_kind="github" ;;
+              *)
+                echo "profile-source '$PROFILE_SOURCE' is neither an existing path, a git URI, nor an owner/repo shorthand" >&2
+                exit 1
+                ;;
+            esac
+          fi
+        fi
+
+        mkdir -p "$HOME/.outfitter"
+        {
+          echo "default_profile: $OUTFITTER_PROFILE"
+          echo "default_agent: $OUTFITTER_AGENT"
+          if [ -n "$source_kind" ]; then
+            echo "profile_sources:"
+            if [ "$source_kind" = "path" ] && [ ! -e "$PROFILE_SOURCE" ]; then
+              echo "  - $source_kind: $GITHUB_WORKSPACE/$PROFILE_SOURCE"
+            else
+              echo "  - $source_kind: $PROFILE_SOURCE"
+            fi
+            if [ "$source_kind" != "path" ] && [ -n "$PROFILE_SOURCE_REF" ]; then
+              echo "    ref: $PROFILE_SOURCE_REF"
+            fi
+          fi
+        } > "$HOME/.outfitter/settings.yml"
+
+        if [ "$source_kind" = "uri" ] || [ "$source_kind" = "github" ]; then
+          outfitter sync
+        fi
+
+    - name: Configure git identity
+      if: inputs.git-user-name != '' || inputs.git-user-email != ''
+      shell: bash
+      env:
+        GIT_NAME: ${{ inputs.git-user-name }}
+        GIT_EMAIL: ${{ inputs.git-user-email }}
+      run: |
+        if [ -n "$GIT_NAME" ]; then
+          git config --global user.name "$GIT_NAME"
+        fi
+        if [ -n "$GIT_EMAIL" ]; then
+          git config --global user.email "$GIT_EMAIL"
+        fi
+
+    - name: Run agent
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        OUTFITTER_PROFILE: ${{ inputs.profile }}
+        OUTFITTER_AGENT: ${{ inputs.agent }}
+        OUTFITTER_PROMPT: ${{ inputs.prompt }}
+        OUTFITTER_STRICT: ${{ inputs.strict }}
+      run: |
+        strict_flag=""
+        [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"
+        outfitter run --profile "$OUTFITTER_PROFILE" --agent "$OUTFITTER_AGENT" $strict_flag -- -p "$OUTFITTER_PROMPT"

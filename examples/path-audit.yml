@@ -1,0 +1,38 @@
+# Audit any push that touches sensitive directories, and file an issue
+# when the agent finds something concerning.
+name: Sensitive path audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "auth/**"
+      - "db/migrations/**"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ai-outfitter/actions@v1
+        with:
+          profile: security-auditor
+          profile-source: my-org/outfitter-catalog
+          profile-source-ref: v1.2.0
+          prompt: >-
+            Commits ${{ github.event.before }}..${{ github.sha }} were pushed to
+            ${{ github.repository }} touching infra/, auth/, or db/migrations/.
+            Inspect the diff with `git diff ${{ github.event.before }}..${{ github.sha }}`
+            and audit it for security regressions, credential leaks, destructive
+            migrations, and privilege changes. If anything is concerning, open
+            an issue with `gh issue create` labeled "security-audit" describing
+            each finding with file and commit references. Otherwise print
+            "No findings".
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
