@@ -49,6 +49,10 @@ More triggers in [`examples/`](examples/):
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
 
+Running more than a couple of these in one repo or org? See
+[docs/design-considerations.md](docs/design-considerations.md) for how to
+structure a growing set of agent workflows.
+
 ## Inputs
 
 | Input | Required | Default | Description |
