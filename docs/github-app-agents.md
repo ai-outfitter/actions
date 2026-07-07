@@ -116,3 +116,40 @@ Neither Gitea nor Forgejo implements the GitHub App concept — there are no ins
 - **Mentions**: `@my-outfitter-agent` notifies the bot user like any mention, but as on GitHub the workflow trigger is the textual match in the `issue_comment` payload, not the notification.
 
 Verify event support against your forge's version — Actions on Gitea/Forgejo is younger than GitHub's and event coverage has grown release by release.
+
+## Alternative: a full persona (account + mailbox + local model)
+
+The Gitea/Forgejo pattern above generalizes: instead of an App, give the agent a complete persona — a real account with its own email address, avatar, and model backend. This is essentially what the forge path already forces, taken to its logical end, and it can be assembled entirely from self-hosted parts:
+
+- **Account** — a machine account on the forge (see [bot-account.md](bot-account.md) for the GitHub version). As a real user it is mentionable, assignable, and reviewer-requestable — the full identity surface, with none of the App's `[bot]` restrictions.
+- **Mailbox** — back the account with a real mailbox on a self-hosted mail server such as [Stalwart](https://stalw.art/). This does more than satisfy the signup form: forges deliver notifications (mentions, review requests, assignment) by email, so the mailbox becomes an *event feed* that works even where Actions event coverage is thin — a poller or JMAP/IMAP-idle listener can wake the agent on any notification the forge emails, on any forge version.
+- **Model** — pair it with a local model server such as [Ollama](https://ollama.com/) and the whole persona runs on your own hardware: identity, event delivery, and inference with no external SaaS dependency. Outfitter profiles select the provider via their `controls`, so the same profile pattern applies; note the pi-adapter caveats with small local models (tool-call loops, weaker instruction following) and keep such an agent on the lowest-privilege token you can.
+
+The trade-off against a GitHub App is the same as in [token-permissions.md](token-permissions.md): long-lived credentials you must rotate, and an account to administer. What you buy is complete self-sufficiency and an identity that behaves like a person everywhere the forge's UI cares.
+
+## Note: multi-agent conversations and asking humans (open work)
+
+Once agents are mentionable identities, patterns beyond "human mentions bot" suggest themselves. **None of this is implemented by this action** — the notes below sketch the design space and why it is harder than it looks.
+
+- **Agent pairs** — a planner agent `@planner-bot` is mentioned on an issue, produces a plan, and mentions `@reviewer-bot`, whose review comment re-triggers the planner. Each hop is just the mention workflow in this doc pointed at a different profile; the mention *is* the message bus.
+- **Ask-user-question** — an agent that hits a decision it can't make posts a question comment tagging a human (or another bot) and stops; the answer comment re-triggers it with the thread as context. This turns a fire-and-forget Actions run into a resumable conversation.
+
+For the ask-user-question UX, the answer comment must be something a run can parse later without guessing. A workable shape is a question comment that carries its own reply template in a fenced code block the responder copies into their reply and fills in:
+
+````markdown
+@nicholas-romero I need a decision before continuing on #42.
+
+**Q1 — migration strategy**: expand/contract, or a locking in-place migration?
+**Q2 — should the old column be dropped in this PR?**
+
+Reply by copying this block into a comment and filling in the answers:
+
+```answers
+Q1:
+Q2:
+```
+````
+
+A fenced block labelled `answers` is trivially greppable from the thread, survives careless formatting, works identically on GitHub, Gitea, and Forgejo, and keeps free-text answers possible. Alternatives each lose something: task-list checkboxes are nice for multiple-choice and GitHub fires `issue_comment.edited` when they're ticked, but editing a *bot's* comment requires permissions humans shouldn't need, and forge support varies; emoji reactions work for yes/no but don't carry information and don't reliably trigger events; free-form replies are pleasant to write but push a parsing-and-inference problem into the next run.
+
+Why this is a note and not a feature: implementing it inside GitHub-style Actions is genuinely open work. Runs are stateless and ephemeral, so the "conversation" state must be reconstructed from the thread every hop; turn-taking has no arbiter, so two bots can mention each other into an infinite loop (every hop needs loop guards, hop budgets, and a human-in-the-loop escape hatch); each hop is a fresh runner paying checkout, install, and model-context costs; and the mention gate from [Guardrails](#guardrails) gets subtle when the "trusted commenter" is itself a bot that untrusted text may have influenced. Treat anything beyond a single request/response hop as a research project, not a workflow file.
