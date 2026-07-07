@@ -43,15 +43,27 @@ per-model quotas on top, and some are unavailable on the Copilot Free plan.
   `429 Too many requests` before the comment is posted. An agentic loop's
   burst profile (several sequential requests, growing context) is exactly
   what the frontier-tier per-minute quota disallows.
-- **`openai/gpt-5-mini` and `openai/gpt-4.1-mini` survive the loop.** Both
-  completed full label+comment runs on the included tier.
+- **`openai/gpt-5-mini` fails differently: upstream 500s.** Trivial direct
+  probes (simple and tool-call) return 200 in ~2s, but three consecutive
+  real runs died with `500 server_error` ~110 seconds into pi's first
+  request (large system prompt + tool schemas + reasoning mode). Before a
+  `reasoning: false` control could be evaluated, the model's ~50/day
+  included quota was exhausted — a one-line probe 429'd while gpt-4.1-mini
+  answered 200 at the same moment. Even when it worked, that quota funds at
+  most ~10 agentic runs/day.
+- **`openai/gpt-4.1-mini` survives the loop.** The only model tested with a
+  clean end-to-end record (label + comment + validation green) on the
+  included tier, and its "low" tier quota (150/day) is 3× the frontier
+  models'.
 - Three **concurrent** runs 429 even for mid-tier models — issue-storm
   scenarios (bulk import, bot-opened issues) will shed runs. The workflow's
   side-effect validation step turns those into loud failures rather than
   silent no-ops.
 
 **Rule of thumb: on the included tier, pick the model by rate tier first,
-capability second.** A model that 429s mid-run has negative capability.
+capability second.** A model that 429s or 500s mid-run has negative
+capability. And validate with a complete run's side effects — every failing
+model here answered a trivial first probe just fine.
 
 ## Per-token prices
 
