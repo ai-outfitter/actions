@@ -48,6 +48,7 @@ More triggers in [`examples/`](examples/):
 - [`pr-ready-for-review.yml`](examples/pr-ready-for-review.yml) — review when a PR leaves draft
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
+- [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 
 ## Inputs
 
@@ -64,7 +65,57 @@ More triggers in [`examples/`](examples/):
 | `strict` | no | `false` | Fail when profile controls can't be translated by the adapter. |
 | `working-directory` | no | `.` | Directory the agent runs in. |
 
-Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets.
+Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+
+## Using GitHub Models (no API keys)
+
+The agent doesn't have to call a paid provider. [GitHub Models](https://docs.github.com/en/github-models) serves hosted models authenticated by the workflow's own `GITHUB_TOKEN`. No secrets to create, store, or rotate. Three parts:
+
+**1. Grant the permission.** Add `models: read` to the workflow's `permissions:` block. The same short-lived installation token that scopes the agent's `gh` calls then also authenticates inference; it's a read-only permission, so it adds nothing to the token's blast radius.
+
+```yaml
+permissions:
+  contents: read
+  issues: write
+  models: read
+```
+
+**2. Describe the provider to `pi`.** Commit a provider config (e.g. `.github/models.json`) pointing at the GitHub Models endpoint. The `$GITHUB_TOKEN` reference is resolved from the environment at runtime — this action exports `GITHUB_TOKEN` on the agent step, so no extra wiring is needed:
+
+```json
+{
+  "providers": {
+    "github-models": {
+      "baseUrl": "https://models.github.ai/inference",
+      "api": "openai-completions",
+      "apiKey": "$GITHUB_TOKEN",
+      "authHeader": true,
+      "models": [
+        { "id": "openai/gpt-4.1-mini", "name": "GPT-4.1 mini (GitHub Models)", "reasoning": false }
+      ]
+    }
+  }
+}
+```
+
+**3. Install it before the action step.** `pi` reads custom providers from `~/.pi/agent/models.json`:
+
+```yaml
+- name: Configure GitHub Models provider for pi
+  run: |
+    mkdir -p "$HOME/.pi/agent"
+    cp .github/models.json "$HOME/.pi/agent/models.json"
+```
+
+Then select the provider in the profile's `controls` (`provider: github-models`, `model: openai/gpt-4.1-mini`). See [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) for a complete workflow.
+
+**Choosing a model.** Three gotchas found by running this in anger:
+
+- Check the model id exists in the live catalog (`curl -s https://models.github.ai/catalog/models`) — the catalog is a subset of what GitHub Models markets, and a missing id fails at inference time with `404 unknown_model`, not at startup.
+- Some models are wire-incompatible with `pi`'s OpenAI adapter: DeepSeek V3 returns the nonstandard finish reason `tool_call` (singular) on tool calls, which aborts the run.
+- Small open-weight models may not hold an agentic loop at all: Llama 4 Maverick fabricated tool results in a single completion and exited green having done nothing. If the job must *act* (label, comment, push), verify the model actually drives the tools before trusting a green run.
+
+**Mind the limits.** GitHub Models' included tier has low per-day request caps and tight context/output token limits per request, and organizations can disable GitHub Models entirely. It fits event-driven, one-shot jobs — issue triage, small classifications — not high-volume review loops or long agentic sessions. For those, use a paid provider key.
 
 ## Scoping what the agent can do
 
@@ -80,6 +131,7 @@ The short version:
 
 - The prompt, the diff under review, and issue/PR text are all **untrusted input** to the agent. Assume prompt injection: a PR under review can contain text that tries to redirect the agent. The token's scope — not the prompt — is your real control.
 - Avoid interpolating attacker-controlled text (PR titles, issue bodies) directly into `prompt:` via `${{ }}`. Reference the PR/issue by number and let the agent fetch content with `gh`, so the untrusted text stays data rather than becoming workflow-file code.
+- When the agent posts text derived from untrusted input (issue bodies, diffs) back through `gh`, its profile should require `--body-file` with a quoted heredoc, never inline `--body "..."` — backticks in a double-quoted body are executed by the shell, turning quoted issue text into command execution on the runner. (Observed live: a comment restating `` `outfitter sync` `` ran the command.)
 - Pin `profile-source-ref` for catalogs you don't own — profiles can inject extensions, CLI args, and environment variables into the agent launch ([trust and review](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/profile-repository.md#trust-and-review)).
 - Don't run this action on `pull_request_target` with a write token against untrusted fork code.
 
