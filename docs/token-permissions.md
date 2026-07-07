@@ -60,7 +60,7 @@ A PAT from a human account carries every repository and permission that person h
 
 ### GitHub App as a further step
 
-For organizations that want installation-scoped, auto-expiring tokens with a bot identity, a GitHub App (using `actions/create-github-app-token` to mint a token per run) is a stronger version of Strategy 2: tokens live ~1 hour, permissions are declared on the app, and installation is per-repo. The action consumes the minted token through the same `github-token` input. The machine-account PAT remains the simpler path if you don't want to operate an App.
+For organizations that want installation-scoped, auto-expiring tokens with a bot identity, a GitHub App (using `actions/create-github-app-token` to mint a token per run) is a stronger version of Strategy 2: tokens live ~1 hour, permissions are declared on the app, and installation is per-repo. The action consumes the minted token through the same `github-token` input. The machine-account PAT remains the simpler path if you don't want to operate an App. See [github-app-agents.md](github-app-agents.md) for the full setup, including @-mention-triggered agents.
 
 ## Hardening checklist
 
