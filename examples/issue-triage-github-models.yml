@@ -1,0 +1,43 @@
+# Triage every newly opened issue on GitHub Models — no API keys required.
+# The agent classifies the issue, applies a label, and comments. Inference is
+# authenticated by the workflow's own GITHUB_TOKEN via `models: read`; the
+# provider config lives in the repo (.github/models.json) and is installed
+# into pi's config dir before the action runs. See the README's
+# "Using GitHub Models (no API keys)" section for the models.json contents.
+#
+# Setup: the labels your triage profile applies must already exist in the
+# repository (`gh label create fix`, etc.) — the workflow token can add
+# existing labels to issues but the agent should not be creating labels.
+name: Issue triage
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  models: read
+
+jobs:
+  triage:
+    # Never triage issues the automation itself opened.
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure GitHub Models provider for pi
+        run: |
+          mkdir -p "$HOME/.pi/agent"
+          cp .github/models.json "$HOME/.pi/agent/models.json"
+
+      - uses: ai-outfitter/actions@v1
+        with:
+          profile: issue-triage
+          profile-source: ai-outfitter/default-profiles
+          profile-source-ref: main # pin a tag/commit for catalogs you don't own
+          # Pass the issue by number only; the profile fetches content with
+          # `gh` so untrusted issue text never enters workflow code.
+          prompt: >-
+            Triage issue #${{ github.event.issue.number }} in
+            ${{ github.repository }} following your process.

@@ -48,6 +48,7 @@ More triggers in [`examples/`](examples/):
 - [`pr-ready-for-review.yml`](examples/pr-ready-for-review.yml) — review when a PR leaves draft
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
+- [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 
 ## Inputs
 
@@ -64,7 +65,51 @@ More triggers in [`examples/`](examples/):
 | `strict` | no | `false` | Fail when profile controls can't be translated by the adapter. |
 | `working-directory` | no | `.` | Directory the agent runs in. |
 
-Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets.
+Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+
+## Using GitHub Models (no API keys)
+
+The agent doesn't have to call a paid provider. [GitHub Models](https://docs.github.com/en/github-models) serves hosted models — including open-weight ones like `openai/gpt-oss-120b` — authenticated by the workflow's own `GITHUB_TOKEN`. No secrets to create, store, or rotate. Three parts:
+
+**1. Grant the permission.** Add `models: read` to the workflow's `permissions:` block. The same short-lived installation token that scopes the agent's `gh` calls then also authenticates inference; it's a read-only permission, so it adds nothing to the token's blast radius.
+
+```yaml
+permissions:
+  contents: read
+  issues: write
+  models: read
+```
+
+**2. Describe the provider to `pi`.** Commit a provider config (e.g. `.github/models.json`) pointing at the GitHub Models endpoint. The `$GITHUB_TOKEN` reference is resolved from the environment at runtime — this action exports `GITHUB_TOKEN` on the agent step, so no extra wiring is needed:
+
+```json
+{
+  "providers": {
+    "github-models": {
+      "baseUrl": "https://models.github.ai/inference",
+      "api": "openai-completions",
+      "apiKey": "$GITHUB_TOKEN",
+      "authHeader": true,
+      "models": [
+        { "id": "openai/gpt-oss-120b", "name": "GPT-OSS 120B (GitHub Models)", "reasoning": true }
+      ]
+    }
+  }
+}
+```
+
+**3. Install it before the action step.** `pi` reads custom providers from `~/.pi/agent/models.json`:
+
+```yaml
+- name: Configure GitHub Models provider for pi
+  run: |
+    mkdir -p "$HOME/.pi/agent"
+    cp .github/models.json "$HOME/.pi/agent/models.json"
+```
+
+Then select the provider in the profile's `controls` (`provider: github-models`, `model: openai/gpt-oss-120b`). See [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) for a complete workflow.
+
+**Mind the limits.** GitHub Models' included tier has low per-day request caps and tight context/output token limits per request, and organizations can disable GitHub Models entirely. It fits event-driven, one-shot jobs — issue triage, small classifications — not high-volume review loops or long agentic sessions. For those, use a paid provider key.
 
 ## Scoping what the agent can do
 
