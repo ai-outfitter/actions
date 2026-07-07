@@ -103,6 +103,33 @@ For exact commit attribution (avatar, verified link to the App), git needs the b
 - **Acknowledge fast if runs are long** — an eyes reaction (`gh api --method POST /repos/{owner}/{repo}/issues/comments/{id}/reactions -f content=eyes`) as a first step tells the mentioner the agent heard them.
 - Branch protection, CODEOWNERS, and rotation guidance from [bot-account.md](bot-account.md#guardrails-for-the-bot-account) apply unchanged — humans merge what the agent proposes.
 
+## Open-source repositories: who may invoke the agent
+
+On a public repo, *anyone with a GitHub account* can comment — and every comment fires `issue_comment`. The invocation gate is therefore doing real work: it is the difference between "maintainers have an agent" and "the internet has your Anthropic bill and a token into your repo". Ways to draw the line, roughly in order of strictness:
+
+- **Assignment is already gated for you.** Only users with triage access or better can assign issues or apply labels, so *assignment*- and *label*-triggered agents inherit the forge's own permission model — nothing extra to check. This is a good reason to prefer those triggers on high-traffic OSS repos.
+- **`author_association`, with eyes open.** The `if:` gate in the workflow above (`OWNER`/`MEMBER`/`COLLABORATOR`) is the cheap check, but on OSS repos know its edges: `MEMBER` reflects org membership as GitHub computes it for the payload, `CONTRIBUTOR` merely means "has a merged commit" — never include it, since anyone can earn it with a typo fix. Drop `COLLABORATOR` too if outside collaborators shouldn't spend agent runs.
+- **An explicit permission check** is more robust than payload fields. Before minting the App token, ask the API what role the commenter actually holds and fail the job otherwise:
+
+  ```yaml
+  - name: Require write access
+    env:
+      GH_TOKEN: ${{ github.token }}
+    run: |
+      role=$(gh api "repos/${{ github.repository }}/collaborators/${{ github.event.comment.user.login }}/permission" --jq .permission)
+      case "$role" in admin|maintain|write) ;; *) echo "::error::$role is not allowed to invoke the agent"; exit 1;; esac
+  ```
+
+- **A label as the trigger.** Contributors *ask* (`@my-outfitter-agent` or just a comment), and a maintainer authorizes by applying an `agent:go` label; the workflow triggers on `issues: [labeled]` instead of the mention. The mention becomes a request, the label is the approval, and label application is permission-gated by GitHub itself.
+- **A GitHub Environment with required reviewers** puts a human approval click in front of every run — the strongest gate, at the cost of ceremony. Good for agents holding write tokens on prominent repos.
+
+Two OSS-specific hazards regardless of gate choice:
+
+- **Maintainer mentions on attacker-authored threads.** The gate checks who wrote the *triggering* comment, but the issue body, earlier comments, and linked diffs may be authored by anyone. A maintainer innocently commenting `@my-outfitter-agent take a look` on a malicious issue hands that issue's text to the agent. This is the standard prompt-injection posture (the token, not the prompt, is the control) — but on public repos, assume it *will* be probed deliberately.
+- **Fork PRs.** `issue_comment` runs in the base repo's context with access to secrets, which is what makes mention-triggered agents on fork PRs work at all — and why the commenter gate is non-negotiable. Never move the trigger to `pull_request_target` with checkout of fork code, per [token-permissions.md](token-permissions.md).
+
+On **Gitea/Forgejo**, `author_association` is not reliably populated, so use the explicit check: an allowlist of maintainer usernames in the workflow, or a call to the forge's API (`/repos/{owner}/{repo}/collaborators/{user}/permission` exists on both) before running the agent. Assignment- and label-gating work the same way as on GitHub, since both forges gate those actions on repo permissions.
+
 ## Gitea / Forgejo
 
 Neither Gitea nor Forgejo implements the GitHub App concept — there are no installable apps, no `[bot]` users, no installation tokens. The same UX is built from simpler parts, and one part is actually *better*:
