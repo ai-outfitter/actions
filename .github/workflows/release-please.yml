@@ -1,0 +1,46 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+
+      # Marketplace consumers pin floating tags such as `v1`; release-please
+      # only creates the exact SemVer tag, so move the compatibility aliases
+      # (`v1`, `v1.2`) to each new release.
+      - uses: actions/checkout@v4
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+
+      - name: Update floating action version tags
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          TAG: ${{ steps.release.outputs.tag_name }}
+          MAJOR_TAG: v${{ steps.release.outputs.major }}
+          MINOR_TAG: v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+
+          target="$(git rev-list -n 1 "$TAG")"
+
+          git tag -f "$MAJOR_TAG" "$target"
+          git tag -f "$MINOR_TAG" "$target"
+
+          # Explicit tag refspecs avoid ambiguity with same-named branches.
+          git push --force origin \
+            "refs/tags/${MAJOR_TAG}:refs/tags/${MAJOR_TAG}" \
+            "refs/tags/${MINOR_TAG}:refs/tags/${MINOR_TAG}"
