@@ -1,8 +1,7 @@
 name: Run Outfitter Profile
 description: >-
-  Run an Outfitter profile non-interactively (pi --print mode) inside a GitHub
-  Actions workflow. Use it to build your own scheduled commit reviewer, PR
-  reviewer, or task-completing agent from any workflow trigger.
+  Run an Outfitter profile headless in GitHub Actions to build scheduled
+  commit reviewers, PR reviewers, or task agents.
 author: ai-outfitter
 branding:
   icon: compass
