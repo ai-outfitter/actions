@@ -67,22 +67,39 @@ not need weekly report mechanics.
 
 ## Trigger context guidance
 
-Prefer stable metadata in the initial prompt:
+Keep the initial prompt focused on routing and stable trigger metadata. Adapt
+the fields to the events declared by the workflow:
 
-- `repository`
-- `workflow`
-- `run_id`
-- `event_name`
-- `event_action`
-- `schedule`
-- `ref_name`
-- `sha`
-- `issue_number`
-- `issue_labels`
-- `assignee`
-- `deployment_status`
-- `environment_url`
-- explicit behavior hints such as `report_kind`
+```yaml
+- uses: ai-outfitter/actions@v1
+  with:
+    profile: platform
+    profile-source: my-org/outfitter-catalog
+    profile-source-ref: v1.2.0
+    prompt: |
+      Handle this GitHub event using the profile's system-prompt rules.
+      Treat trigger_context as routing metadata, select only the relevant
+      skill, then fetch the source material that skill needs with trusted tools.
+
+      trigger_context:
+        repository: ${{ github.repository }}
+        workflow: ${{ github.workflow }}
+        run_id: ${{ github.run_id }}
+        event_name: ${{ github.event_name }}
+        event_action: ${{ github.event.action || '' }}
+        schedule: ${{ github.event.schedule || '' }}
+        ref_name: ${{ github.ref_name }}
+        sha: ${{ github.sha }}
+        issue_number: ${{ github.event.issue.number || '' }}
+        issue_labels: ${{ toJSON(github.event.issue.labels.*.name) }}
+        assignee: ${{ github.event.assignee.login || '' }}
+        deployment_status: ${{ github.event.deployment_status.state || '' }}
+        environment_url: ${{ github.event.deployment_status.environment_url || '' }}
+```
+
+Add an explicit trusted hint such as `report_kind: weekly-kpi` when multiple
+behaviors share the same GitHub trigger and the event metadata cannot
+distinguish them.
 
 Avoid interpolating untrusted bodies into the launch prompt:
 
