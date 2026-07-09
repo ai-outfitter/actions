@@ -49,6 +49,50 @@ More triggers in [`examples/`](examples/):
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
 
+## Bundled workflow-design profile
+
+This repository ships a small `outfitter-actions` profile for designing and
+reviewing workflows built on this action. It includes the `outfitter-actions`
+skill, which captures the recommended pattern: few profiles, many skills, and
+structured GitHub trigger context passed into the prompt.
+
+Most users should add the skill to their existing Outfitter platform profile so
+the guidance is available inside the profile they already use to design and
+maintain automation:
+
+```yaml
+# .outfitter/profiles/platform.yml
+id: platform
+label: Platform
+controls:
+  pi:
+    skills:
+      - .outfitter/skills/outfitter-actions
+```
+
+Then the platform profile can be launched from a workflow as usual:
+
+```yaml
+- uses: ai-outfitter/actions@v1
+  with:
+    profile: platform
+    profile-source: .outfitter/profiles
+    prompt: |
+      Review this workflow design and suggest how to keep it dry.
+
+      trigger_context:
+        repository: ${{ github.repository }}
+        workflow: ${{ github.workflow }}
+        event_name: ${{ github.event_name }}
+        event_action: ${{ github.event.action || '' }}
+        ref_name: ${{ github.ref_name }}
+        sha: ${{ github.sha }}
+```
+
+The bundled `outfitter-actions` profile is intentionally small: it exists as a
+copyable reference and as a direct profile for repos that only want this
+workflow-design guidance, without tying the skill to a project-specific catalog.
+
 ## Inputs
 
 | Input | Required | Default | Description |

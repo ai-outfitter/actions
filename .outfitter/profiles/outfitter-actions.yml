@@ -1,0 +1,9 @@
+id: outfitter-actions
+label: Outfitter Actions Designer
+description: |
+  Design and review ai-outfitter/actions workflows using the few-profiles,
+  many-skills pattern with structured trigger context.
+controls:
+  pi:
+    skills:
+      - .outfitter/skills/outfitter-actions
