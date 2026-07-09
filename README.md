@@ -124,7 +124,7 @@ You are handing a language-model agent a token and a shell. Treat the token as t
 The short version:
 
 1. **Prefer the workflow's own `GITHUB_TOKEN`** with an explicit least-privilege [`permissions:` block](https://docs.github.com/en/actions/using-jobs/assigning-permissions-to-jobs). It is repo-scoped, short-lived, and revoked when the job ends. A read-only reviewer needs nothing more than `contents: read` + `pull-requests: write`.
-2. **When the agent must act as its own identity** — open PRs that trigger other workflows, be assignable, be @-mentionable — create a **dedicated machine account** and give the action a **fine-grained PAT** from that account, restricted to the specific repositories and the minimum permission set. See [docs/bot-account.md](docs/bot-account.md).
+2. **When the agent must act as its own identity** — open PRs that trigger other workflows, be assignable, be @-mentionable — create a **dedicated machine account** and give the action a **fine-grained PAT** from that account, restricted to the specific repositories and the minimum permission set. See [docs/bot-account.md](docs/bot-account.md). For an @-mentionable agent (`@my-outfitter-agent` in a comment) with short-lived, per-run tokens, use a **GitHub App** instead — see [docs/github-app-agents.md](docs/github-app-agents.md).
 3. **Never use a human's PAT.** A personal token inherits everything that person can touch, and actions taken with it are indistinguishable from the human's.
 
 ### Trust boundaries to keep in mind
