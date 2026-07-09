@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
+        with:
+          # Org settings block GITHUB_TOKEN from creating pull requests, so
+          # use the org-level PAT (same setup as ai-outfitter/outfitter).
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
       # Marketplace consumers pin floating tags such as `v1`; release-please
       # only creates the exact SemVer tag, so move the compatibility aliases
