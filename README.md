@@ -48,6 +48,23 @@ More triggers in [`examples/`](examples/):
 - [`pr-ready-for-review.yml`](examples/pr-ready-for-review.yml) — review when a PR leaves draft
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
+- [`trigger-context-agent.yml`](examples/trigger-context-agent.yml) — reuse one profile across multiple triggers by passing structured trigger context into the prompt
+
+## Designing agentic workflows
+
+As your automation grows, avoid creating one profile and one bespoke workflow for
+every new agent behavior. Prefer **few profiles, many skills, and structured
+trigger context**:
+
+- profiles define stable identity, shared policy, and common operating rules
+- skills define task-specific capabilities and enable progressive disclosure
+- workflows pass exact GitHub event data into `prompt:` as routing metadata
+
+That pattern keeps new agentic workflows dry: the GitHub Actions job stays thin,
+the profile's safety posture lives in one place, and the agent loads detailed
+skill instructions only when the trigger context calls for them. See
+[docs/agentic-workflow-pattern.md](docs/agentic-workflow-pattern.md) for the
+full design pattern.
 
 ## Inputs
 
