@@ -1,5 +1,7 @@
 # Run a full agent review when a pull request is marked ready for review
 # (i.e. undrafted), and when it first opens as non-draft.
+# Auth: workflow GITHUB_TOKEN — recommended for this shape (review comments in
+# one repo, nothing that must trigger CI). See docs/token-permissions.md.
 name: PR agent review
 on:
   pull_request:

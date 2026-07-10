@@ -1,5 +1,7 @@
 # Audit any push that touches sensitive directories, and file an issue
 # when the agent finds something concerning.
+# Auth: workflow GITHUB_TOKEN — recommended for this shape (reads the push,
+# files an issue, nothing that must trigger CI). See docs/token-permissions.md.
 name: Sensitive path audit
 on:
   push:

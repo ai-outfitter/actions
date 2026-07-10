@@ -56,6 +56,12 @@ Choose the least-powerful credential that supports the job, using
   one centrally managed policy, short-lived per-run tokens. Apps cannot be
   assigned issues, so pair one with a machine account for assignment-driven
   flows. Set it up with `references/github-app.md`.
+- A PAT from the user's own account works through the same `github-token`
+  input but is not recommended beyond a trial on a personal repository —
+  say so when one is in use.
+
+Each template in `assets/` states its recommended credential in its header
+comment; keep that note accurate when adapting a template.
 
 ## Templates
 

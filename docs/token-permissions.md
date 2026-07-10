@@ -2,13 +2,36 @@
 
 The agent launched by this action runs arbitrary tool calls — `gh`, `git`, shell — with whatever token you hand it. Its inputs (diffs, issue text, PR comments) are untrusted, so assume the worst prompt injection and scope the token so that even a fully hijacked agent can't do more than the job requires.
 
-There are three credential options. Default to the first; move up only when the job needs a capability the row names.
+There are three recommended credential options plus one shortcut. Default to the first; move up only when the job needs a capability the row names.
 
-| Credential                              | Recommended when                                                                                                                                                      | Setup                            |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Workflow `GITHUB_TOKEN`                 | **Default.** Single-repo jobs that read, comment, label, or open issues/PRs that don't need CI: triage, reviews, reports.                                             | Strategy 1 below                 |
-| Fine-grained PAT from a machine account | The agent must be **assignable**, @-mentionable, a distinct reviewer, or its PRs must trigger CI — assignment-driven implementation.                                  | [bot-account.md](bot-account.md) |
-| GitHub App installation token           | **Org-scale**: many repos under one centrally managed policy, short-lived per-run tokens, no seat. Not assignable — pair with a machine account for assignment flows. | [github-app.md](github-app.md)   |
+| Credential                              | Recommended when                                                                                                                                                      | Setup                                       |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Workflow `GITHUB_TOKEN`                 | **Default.** Single-repo jobs that read, comment, label, or open issues/PRs that don't need CI: triage, reviews, reports.                                             | Strategy 1 below                            |
+| Fine-grained PAT from a machine account | The agent must be **assignable**, @-mentionable, a distinct reviewer, or its PRs must trigger CI — assignment-driven implementation.                                  | [bot-account.md](bot-account.md)            |
+| GitHub App installation token           | **Org-scale**: many repos under one centrally managed policy, short-lived per-run tokens, no seat. Not assignable — pair with a machine account for assignment flows. | [github-app.md](github-app.md)              |
+| PAT from your own account               | **Not recommended.** Works through the same `github-token` input — acceptable for a quick trial on a personal repo, nothing more.                                     | [Why not a human PAT](#why-not-a-human-pat) |
+
+## What each credential's workflows look like
+
+- **`GITHUB_TOKEN` workflows read the repository and write conversation.** The
+  run comments, labels, or opens an issue or PR, and nothing it creates needs
+  to trigger further CI: issue triage on open, a PR review when a draft is
+  marked ready, a scheduled commit review that files an issue, a path audit
+  on push. Everything stays in the one repository the workflow lives in.
+- **Machine-account workflows act like a teammate.** A human assigns the bot
+  an issue or PR; the agent implements the change on a branch, pushes as its
+  own identity, and opens a draft PR that runs CI like anyone else's. Reviews
+  and comments read as the bot, and the audit trail separates its work from
+  humans'.
+- **GitHub App workflows are fleet automation.** The same reusable workflow is
+  installed across many repositories under one org-managed policy: nightly
+  reports across a portfolio, org-wide dependency or convention sweeps, a
+  platform profile serving every product repo. Each run mints its own
+  short-lived token; nothing long-lived exists to rotate per repo.
+- **A personal PAT is the ten-minute trial.** It gets an experiment running on
+  your own repository with zero setup, but it carries everything your account
+  can touch and blends the agent's actions into your identity. Switch to one
+  of the rows above before the workflow does real work.
 
 ## Strategy 1: the workflow `GITHUB_TOKEN` (default)
 
@@ -65,7 +88,7 @@ If the agent should also _check out_ private repos beyond the current one, pass 
 
 ### Why not a human PAT
 
-A PAT from a human account carries every repository and permission that person has, cannot be scoped to "just this bot's job" organizationally, and makes the agent's actions forensically indistinguishable from the human's. If the agent misbehaves — or is prompt-injected into misbehaving — you want the audit log to say the bot did it, and you want revoking the bot to cost nothing.
+A fine-grained PAT from your own account does work — pass it through the same `github-token` input — and it is the fastest way to trial the action on a personal repository. Beyond that trial it is not recommended: a human PAT carries every repository and permission that person has, cannot be scoped to "just this bot's job" organizationally, and makes the agent's actions forensically indistinguishable from the human's. If the agent misbehaves — or is prompt-injected into misbehaving — you want the audit log to say the bot did it, and you want revoking the bot to cost nothing.
 
 ### GitHub App as a further step
 

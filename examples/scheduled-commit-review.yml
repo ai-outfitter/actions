@@ -1,5 +1,7 @@
 # Review the commits that landed on main since the last run, on a cron.
 # The agent reads recent history and files an issue when something needs attention.
+# Auth: workflow GITHUB_TOKEN — recommended for this shape (reads history,
+# files an issue, nothing that must trigger CI). See docs/token-permissions.md.
 name: Scheduled commit review
 on:
   schedule:
