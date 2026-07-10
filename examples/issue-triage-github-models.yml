@@ -8,6 +8,8 @@
 # Setup: the labels your triage profile applies must already exist in the
 # repository (`gh label create fix`, etc.) — the workflow token can add
 # existing labels to issues but the agent should not be creating labels.
+# Auth: workflow GITHUB_TOKEN — recommended for this shape (labels and comments
+# in one repo, nothing that must trigger CI). See docs/token-permissions.md.
 name: Issue triage
 on:
   issues:

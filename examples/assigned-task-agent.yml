@@ -1,7 +1,9 @@
 # Complete a task when an issue is assigned to the bot's machine account.
-# Requires a dedicated machine account + fine-grained PAT — see docs/bot-account.md.
 # The same pattern works for `pull_request: types: [assigned]` to have the
 # agent pick up and finish an existing PR.
+# Auth: machine-account fine-grained PAT — required for this shape (the bot
+# must be assignable and its PRs must trigger CI; a GitHub App cannot be
+# assigned). See docs/token-permissions.md and docs/bot-account.md.
 name: Assigned task agent
 on:
   issues:
