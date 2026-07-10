@@ -8,6 +8,7 @@ By default the action acts as `github-actions[bot]` via the workflow token. To g
 - **Blast radius** — the account is only ever granted the repos and roles the agent needs. Revoking or suspending it disables the agent everywhere at once without touching any human's access.
 - **Triggerability** — PRs and pushes made with a machine-account PAT trigger workflows normally (unlike `GITHUB_TOKEN`), so the agent's PRs get CI.
 - **Assignability** — "when a PR is assigned to X, run the agent" needs an X that is a real account.
+- **Reachability** — the bot has a name and a real email address, so it can plug into the channels your team already watches. Point its email alias at a Slack-connected address or shared inbox and the bot's notifications (review requests, mentions, failed runs) land where humans see them; give the account a matching handle in Slack or your chat tool and teammates can @-mention "the bot" as naturally as a colleague. None of this changes what the agent can do — it makes the agent's activity visible and addressable in your team's normal communication.
 
 GitHub's terms allow one machine account per user for this purpose; on GitHub Enterprise Cloud, use a dedicated managed user instead.
 
@@ -67,7 +68,8 @@ display name, and scoped access tokens. That makes **one account per persona**
 practical: a `review-bot` whose comments read as the reviewer, an
 `implement-bot` that picks up assigned issues, a `release-bot` that only
 touches tags and changelogs. Each persona gets exactly the repository access
-its job needs, and suspending one persona never touches the others.
+its job needs, its own email that can route to a team channel (see
+"Reachability" above), and suspending one persona never touches the others.
 
 Gitea Actions and Forgejo Actions run GitHub-Actions-compatible workflows, so
 the patterns in this repository's examples carry over: create the account,
