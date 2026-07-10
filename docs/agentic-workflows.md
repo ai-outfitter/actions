@@ -28,6 +28,16 @@ Adding a new agentic situation should usually add a skill and one activation
 rule. Do not create another profile when the identity, permissions, tools, and
 policy have not changed.
 
+Within that rule, err on the side of fewer, larger skills that route
+internally to different references. One deployment skill can route success and
+failure paths to separate runbooks; one incident skill can route several
+failure modes. Point those references at existing human-facing documentation
+instead of writing agent-only copies, and split a skill only when its
+description can no longer say when it applies. A profile can also
+[append its own references](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/skills.md#profile-added-references)
+to a skill it selects, so specializing a shared skill for one repository does
+not require forking it.
+
 This repository publishes these rules as the standalone `outfitter-actions`
 skill; the [README](../README.md#workflow-design-skill) shows how to add the
 catalog source and select the skill from your own profile.
@@ -82,8 +92,7 @@ Use trigger_context to select only the skill needed for this run.
 - issues/opened with fix, feat, or idea labels: use issue-planning.
 - issues/assigned to the platform account: use issue-implementation.
 - schedule with report_kind weekly-kpi: use kpi-reporting.
-- deployment_status success: use deployment-review.
-- deployment_status failure: use failed-deployment-triage.
+- deployment_status success or failure: use deployment-review.
 Fetch full event content only after selecting the skill.
 ```
 
@@ -124,10 +133,12 @@ to Slack when that integration is configured.
 
 ### Deployment review
 
-On a successful release or deployment, activate a smoke-test or persona-review
-skill against the live, staging, or preview URL. On failure, activate a
-failed-deployment skill that gathers logs and either investigates directly or
-opens a well-scoped issue.
+On any deployment event, activate one deployment-review skill that routes on
+`deployment_status`: success routes to a smoke-test or persona-review
+reference against the live, staging, or preview URL; failure routes to a
+triage reference that gathers logs and either investigates directly or opens a
+well-scoped issue. One skill, two references — not two skills.
 
-These situations require different skills, but they do not inherently require
-different identities, profiles, or copies of the same GitHub Actions job.
+These situations require different skills or references, but they do not
+inherently require different identities, profiles, or copies of the same
+GitHub Actions job.

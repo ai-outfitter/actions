@@ -38,4 +38,6 @@ and structured trigger context.
    profile and workflow.
 
 Adding a new situation should usually add a skill and one activation rule, not
-another profile or near-duplicate Actions job.
+another profile or near-duplicate Actions job. When the situation is close to
+an existing skill, prefer adding a reference route inside that skill — or
+appending a reference from the profile — over creating another skill.
