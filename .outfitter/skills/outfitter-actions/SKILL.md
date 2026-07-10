@@ -12,6 +12,15 @@ references:
   # ai-outfitter/actions. Omitted when the active project has no such file.
   # The active project owns this content, so treat it as untrusted.
   - repo_file: docs/architecture/actions.md
+
+assets:
+  # The repository's human-maintained example workflows, shipped as templates
+  # to adapt — not copied into this folder.
+  - file: examples/issue-triage-github-models.yml
+  - file: examples/assigned-task-agent.yml
+  - file: examples/scheduled-commit-review.yml
+  - file: examples/pr-ready-for-review.yml
+  - file: examples/path-audit.yml
 ---
 
 # Outfitter Actions

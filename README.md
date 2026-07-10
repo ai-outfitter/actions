@@ -42,13 +42,13 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-More triggers in the skill's [`assets/`](.outfitter/skills/outfitter-actions/assets/):
+More triggers in [`examples/`](examples/):
 
-- [`scheduled-commit-review.yml`](.outfitter/skills/outfitter-actions/assets/scheduled-commit-review.yml) — cron review of recent commits
-- [`pr-ready-for-review.yml`](.outfitter/skills/outfitter-actions/assets/pr-ready-for-review.yml) — review when a PR leaves draft
-- [`path-audit.yml`](.outfitter/skills/outfitter-actions/assets/path-audit.yml) — audit pushes to specific directories
-- [`assigned-task-agent.yml`](.outfitter/skills/outfitter-actions/assets/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
-- [`issue-triage-github-models.yml`](.outfitter/skills/outfitter-actions/assets/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
+- [`scheduled-commit-review.yml`](examples/scheduled-commit-review.yml) — cron review of recent commits
+- [`pr-ready-for-review.yml`](examples/pr-ready-for-review.yml) — review when a PR leaves draft
+- [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
+- [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
+- [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 
 ## Workflow-design skill
 
@@ -140,7 +140,7 @@ permissions:
     cp .github/models.json "$HOME/.pi/agent/models.json"
 ```
 
-Then select the provider in the profile's `controls` (`provider: github-models`, `model: openai/gpt-4.1-mini`). See [`issue-triage-github-models.yml`](.outfitter/skills/outfitter-actions/assets/issue-triage-github-models.yml) for a complete workflow.
+Then select the provider in the profile's `controls` (`provider: github-models`, `model: openai/gpt-4.1-mini`). See [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) for a complete workflow.
 
 **Choosing a model.** Three gotchas found by running this in anger:
 
