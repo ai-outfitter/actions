@@ -22,7 +22,9 @@ There are three recommended credential options plus one shortcut. Default to the
   an issue or PR; the agent implements the change on a branch, pushes as its
   own identity, and opens a draft PR that runs CI like anyone else's. Reviews
   and comments read as the bot, and the audit trail separates its work from
-  humans'.
+  humans'. On self-hosted forges (Gitea, Forgejo), machine accounts have no
+  seat cost or terms limit, so one account per persona is practical — see
+  [bot-account.md](bot-account.md#self-hosted-forges-gitea-forgejo-and-friends).
 - **GitHub App workflows are fleet automation.** The same reusable workflow is
   installed across many repositories under one org-managed policy: nightly
   reports across a portfolio, org-wide dependency or convention sweeps, a

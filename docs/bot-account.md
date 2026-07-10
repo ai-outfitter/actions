@@ -57,3 +57,21 @@ Because `actions/checkout` is given the bot's token and the git identity is set 
 - **Recursion guard** — when the bot's PRs trigger workflows that could re-invoke the agent, gate agent jobs with `if: github.actor != 'myorg-outfitter-bot'` (or an equivalent label check) so the agent doesn't respond to itself.
 - **Rotate the PAT** on a schedule (fine-grained PATs have expiry; use it) and immediately if a workflow log ever suggests the token was echoed.
 - **Review its footprint periodically** — the org's people/teams pages and the PAT list under the org's settings show exactly what the bot can reach; prune repos it no longer works in.
+
+## Self-hosted forges: Gitea, Forgejo, and friends
+
+On a self-hosted forge, machine accounts stop being scarce. There is no seat
+cost and no one-machine-account-per-user terms clause — an admin can create as
+many bot accounts as the automation warrants, each with its own avatar,
+display name, and scoped access tokens. That makes **one account per persona**
+practical: a `review-bot` whose comments read as the reviewer, an
+`implement-bot` that picks up assigned issues, a `release-bot` that only
+touches tags and changelogs. Each persona gets exactly the repository access
+its job needs, and suspending one persona never touches the others.
+
+Gitea Actions and Forgejo Actions run GitHub-Actions-compatible workflows, so
+the patterns in this repository's examples carry over: create the account,
+issue a scoped access token from it, store the token as an Actions secret, and
+pass it through the same `github-token` input. The guardrails above apply
+unchanged — branch protection, recursion guards keyed on each bot's login, and
+periodic footprint review.

@@ -59,6 +59,9 @@ Choose the least-powerful credential that supports the job, using
 - A PAT from the user's own account works through the same `github-token`
   input but is not recommended beyond a trial on a personal repository —
   say so when one is in use.
+- On self-hosted forges (Gitea, Forgejo), machine accounts have no seat cost
+  or terms limit, so prefer one account per persona (reviewer, implementer,
+  releaser), each with its own scoped token. See `references/bot-account.md`.
 
 Each template in `assets/` states its recommended credential in its header
 comment; keep that note accurate when adapting a template.
