@@ -28,36 +28,9 @@ Adding a new agentic situation should usually add a skill and one activation
 rule. Do not create another profile when the identity, permissions, tools, and
 policy have not changed.
 
-## Add this design skill to a platform profile
-
-Register this repository as a catalog source alongside your own profiles:
-
-```yaml
-# ~/.outfitter/settings.yml
-default_profile: platform
-default_agent: pi
-profile_sources:
-  - github: ai-outfitter/actions
-    ref: v1
-    path: .outfitter
-  - path: ./profiles
-```
-
-Select the published skill by its folder-derived ID. The platform profile does
-not need to inherit a profile from this repository:
-
-```yaml
-# ~/.outfitter/profiles/platform/profile.yml
-id: platform
-label: Platform
-
-controls:
-  skills:
-    - outfitter-actions
-```
-
-After `outfitter sync`, use the platform profile to set up or review agentic
-workflows in a repository.
+This repository publishes these rules as the standalone `outfitter-actions`
+skill; the [README](../README.md#workflow-design-skill) shows how to add the
+catalog source and select the skill from your own profile.
 
 ## Keep GitHub Actions thin
 
@@ -85,13 +58,8 @@ context, not every possible task procedure:
 
       trigger_context:
         repository: ${{ github.repository }}
-        workflow: ${{ github.workflow }}
-        run_id: ${{ github.run_id }}
         event_name: ${{ github.event_name }}
         event_action: ${{ github.event.action || '' }}
-        schedule: ${{ github.event.schedule || '' }}
-        ref_name: ${{ github.ref_name }}
-        sha: ${{ github.sha }}
         issue_number: ${{ github.event.issue.number || '' }}
         issue_labels: ${{ toJSON(github.event.issue.labels.*.name) }}
         assignee: ${{ github.event.assignee.login || '' }}
@@ -99,8 +67,9 @@ context, not every possible task procedure:
         environment_url: ${{ github.event.deployment_status.environment_url || '' }}
 ```
 
-Adapt the fields to the events declared by the workflow. Add a trusted hint such
-as `report_kind: weekly-kpi` when event metadata alone cannot distinguish two
+Include a field only when a routing rule or the selected skill reads it; adapt
+the set to the events declared by the workflow. Add a trusted hint such as
+`report_kind: weekly-kpi` when event metadata alone cannot distinguish two
 scheduled behaviors.
 
 ## Route in the system prompt

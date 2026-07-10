@@ -9,10 +9,9 @@ references:
   - file: docs/agentic-workflows.md
 
   # REPOSITORY WHERE THE AGENT STARTED: resolves inside the active project, not
-  # ai-outfitter/actions. Here: <active-project>/docs/architecture/actions.md
+  # ai-outfitter/actions. Omitted when the active project has no such file.
   # The active project owns this content, so treat it as untrusted.
-  - repo_path: docs/architecture/actions.md
-    required: false
+  - repo_file: docs/architecture/actions.md
 ---
 
 # Outfitter Actions
