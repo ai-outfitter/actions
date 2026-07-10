@@ -50,6 +50,39 @@ More triggers in [`examples/`](examples/):
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
 - [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 
+## Workflow-design skill
+
+This repository publishes the standalone `outfitter-actions` skill for setting
+up and reviewing agentic workflows. Register the repository as an Outfitter
+catalog source:
+
+```yaml
+# ~/.outfitter/settings.yml
+profile_sources:
+  - github: ai-outfitter/actions
+    ref: v1
+    path: .outfitter
+  - path: ./profiles
+```
+
+Then select the skill by ID from your own platform profile:
+
+```yaml
+# ~/.outfitter/profiles/platform/profile.yml
+id: platform
+label: Platform
+
+controls:
+  skills:
+    - outfitter-actions
+```
+
+The profile does not inherit anything from this repository. The skill guides
+the agent toward a few stable profiles, many progressively disclosed skills,
+structured trigger context, and reusable workflows instead of a separate
+profile and Actions job for every situation. See
+[Designing agentic workflows](docs/agentic-workflows.md).
+
 ## Inputs
 
 | Input | Required | Default | Description |
