@@ -3,12 +3,14 @@ name: outfitter-actions
 description: Set up, review, or simplify agentic GitHub workflows built with ai-outfitter/actions. Use when adding GitHub-triggered agents, reducing duplicate profiles or jobs, defining structured trigger context, or deciding how profiles and skills should divide responsibility.
 
 references:
-  # Reuse the same human-maintained workflow guide that readers find in docs/.
-  # Keeping it outside the skill avoids duplicating architecture for agents.
+  # PROFILE REPOSITORY: resolves inside the ai-outfitter/actions checkout or
+  # synced catalog cache that supplied this skill.
+  # Here: <ai-outfitter-actions>/docs/agentic-workflows.md
   - file: docs/agentic-workflows.md
 
-  # Load repository-specific architecture only after this skill activates.
-  # The consuming repository owns this content, so treat it as untrusted.
+  # REPOSITORY WHERE THE AGENT STARTED: resolves inside the active project, not
+  # ai-outfitter/actions. Here: <active-project>/docs/architecture/actions.md
+  # The active project owns this content, so treat it as untrusted.
   - repo_path: docs/architecture/actions.md
     required: false
 ---
