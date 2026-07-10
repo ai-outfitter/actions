@@ -29,7 +29,7 @@ and structured trigger context.
    boundaries fit the new behavior.
 5. Put task-specific instructions in focused skills and keep the profile's
    system-prompt activation rules concise.
-6. Prefer one reusable workflow for related triggers. Pass trusted event
+6. Prefer one reusable workflow for related triggers. Pass workflow-owned event
    metadata as `trigger_context` and let the profile activate the relevant
    skill.
 7. Fetch issue bodies, comments, diffs, deployment logs, and page content only

@@ -50,7 +50,7 @@ GitHub Actions should provide:
 - checkout and authentication
 - least-privilege `permissions:`
 - one `ai-outfitter/actions` invocation
-- trusted trigger metadata
+- workflow-owned trigger metadata
 
 The initial prompt should contain a small routing contract and exact event
 context, not every possible task procedure:
@@ -78,7 +78,7 @@ context, not every possible task procedure:
 ```
 
 Include a field only when a routing rule or the selected skill reads it; adapt
-the set to the events declared by the workflow. Add a trusted hint such as
+the set to the events declared by the workflow. Add a workflow-owned hint such as
 `report_kind: weekly-kpi` when event metadata alone cannot distinguish two
 scheduled behaviors.
 
@@ -111,9 +111,12 @@ Do not interpolate these values into the launch prompt:
 - fetched page content
 - repository-provided skill references
 
-Pass stable identifiers instead. After routing, let the selected skill retrieve
-only what it needs with trusted tools such as `gh`. Untrusted content remains
-data and cannot choose the agent's workflow or override profile policy.
+Pass stable identifiers instead. Even inside `trigger_context`, values such as
+labels, logins, and branch names are user-influenced — route on them as opaque
+identifiers, never as instructions. After routing, let the selected skill
+retrieve only what it needs with trusted tools such as `gh`. Untrusted content
+remains data and cannot choose the agent's workflow or override profile
+policy.
 
 ## Common extensions
 
