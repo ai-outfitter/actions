@@ -2,7 +2,13 @@
 
 The agent launched by this action runs arbitrary tool calls — `gh`, `git`, shell — with whatever token you hand it. Its inputs (diffs, issue text, PR comments) are untrusted, so assume the worst prompt injection and scope the token so that even a fully hijacked agent can't do more than the job requires.
 
-There are two token strategies. Use the first unless you specifically need the second.
+There are three credential options. Default to the first; move up only when the job needs a capability the row names.
+
+| Credential                              | Recommended when                                                                                                                                                      | Setup                            |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Workflow `GITHUB_TOKEN`                 | **Default.** Single-repo jobs that read, comment, label, or open issues/PRs that don't need CI: triage, reviews, reports.                                             | Strategy 1 below                 |
+| Fine-grained PAT from a machine account | The agent must be **assignable**, @-mentionable, a distinct reviewer, or its PRs must trigger CI — assignment-driven implementation.                                  | [bot-account.md](bot-account.md) |
+| GitHub App installation token           | **Org-scale**: many repos under one centrally managed policy, short-lived per-run tokens, no seat. Not assignable — pair with a machine account for assignment flows. | [github-app.md](github-app.md)   |
 
 ## Strategy 1: the workflow `GITHUB_TOKEN` (default)
 
@@ -14,15 +20,15 @@ If you pass nothing to `github-token`, the action uses the workflow's installati
 
 Always set the `permissions:` block explicitly at the workflow or job level; don't rely on the org/repo default (which may be broad write). Recommended sets per use case:
 
-| Use case | `permissions:` |
-| --- | --- |
-| Scheduled commit review (report to issue) | `contents: read`, `issues: write` |
-| PR review with comments | `contents: read`, `pull-requests: write` |
-| Path audit posting a commit comment | `contents: read` *(commit comments need `contents: write`; prefer opening an issue with `issues: write`)* |
-| Agent that pushes a branch and opens a PR | `contents: write`, `pull-requests: write` |
-| Issue triage on GitHub Models (no API keys) | `contents: read`, `issues: write`, `models: read` |
+| Use case                                    | `permissions:`                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Scheduled commit review (report to issue)   | `contents: read`, `issues: write`                                                                         |
+| PR review with comments                     | `contents: read`, `pull-requests: write`                                                                  |
+| Path audit posting a commit comment         | `contents: read` _(commit comments need `contents: write`; prefer opening an issue with `issues: write`)_ |
+| Agent that pushes a branch and opens a PR   | `contents: write`, `pull-requests: write`                                                                 |
+| Issue triage on GitHub Models (no API keys) | `contents: read`, `issues: write`, `models: read`                                                         |
 
-One permission deserves a note: `models: read` lets the same `GITHUB_TOKEN` authenticate inference against [GitHub Models](https://docs.github.com/en/github-models), making the token both the agent's acting credential and its model credential. It is read-only — it grants no new write surface — but it does mean a single `permissions:` block now describes everything the run can do *and* what it thinks with. See the README's "Using GitHub Models (no API keys)" section.
+One permission deserves a note: `models: read` lets the same `GITHUB_TOKEN` authenticate inference against [GitHub Models](https://docs.github.com/en/github-models), making the token both the agent's acting credential and its model credential. It is read-only — it grants no new write surface — but it does mean a single `permissions:` block now describes everything the run can do _and_ what it thinks with. See the README's "Using GitHub Models (no API keys)" section.
 
 Known limitations of `GITHUB_TOKEN`:
 
@@ -55,7 +61,7 @@ Store the PAT as an Actions secret (repo-level, or org-level restricted to the r
     prompt: "..."
 ```
 
-If the agent should also *check out* private repos beyond the current one, pass the same token to `actions/checkout`'s `token:` input.
+If the agent should also _check out_ private repos beyond the current one, pass the same token to `actions/checkout`'s `token:` input.
 
 ### Why not a human PAT
 
@@ -63,7 +69,7 @@ A PAT from a human account carries every repository and permission that person h
 
 ### GitHub App as a further step
 
-For organizations that want installation-scoped, auto-expiring tokens with a bot identity, a GitHub App (using `actions/create-github-app-token` to mint a token per run) is a stronger version of Strategy 2: tokens live ~1 hour, permissions are declared on the app, and installation is per-repo. The action consumes the minted token through the same `github-token` input. The machine-account PAT remains the simpler path if you don't want to operate an App.
+For organizations that want installation-scoped, auto-expiring tokens with a bot identity, a GitHub App (using `actions/create-github-app-token` to mint a token per run) is a stronger version of Strategy 2: tokens live ~1 hour, permissions are declared on the app, and installation is per-repo. The action consumes the minted token through the same `github-token` input. The machine-account PAT remains the simpler path if you don't want to operate an App — and the only path when the agent must be assignable. See [github-app.md](github-app.md) for setup and guardrails.
 
 ## Hardening checklist
 

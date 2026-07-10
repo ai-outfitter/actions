@@ -4,9 +4,9 @@ description: Set up, review, or simplify agentic GitHub workflows built with ai-
 
 references:
   # PROFILE REPOSITORY: resolves inside the ai-outfitter/actions checkout or
-  # synced catalog cache that supplied this skill.
-  # Here: <ai-outfitter-actions>/docs/agentic-workflows.md
-  - file: docs/agentic-workflows.md
+  # synced catalog cache that supplied this skill. The glob keeps every
+  # human-maintained doc available without re-listing new ones here.
+  - file: docs/*.md
 
   # REPOSITORY WHERE THE AGENT STARTED: resolves inside the active project, not
   # ai-outfitter/actions. Omitted when the active project has no such file.
@@ -16,11 +16,7 @@ references:
 assets:
   # The repository's human-maintained example workflows, shipped as templates
   # to adapt — not copied into this folder.
-  - file: examples/issue-triage-github-models.yml
-  - file: examples/assigned-task-agent.yml
-  - file: examples/scheduled-commit-review.yml
-  - file: examples/pr-ready-for-review.yml
-  - file: examples/path-audit.yml
+  - file: examples/*.yml
 ---
 
 # Outfitter Actions
@@ -45,6 +41,21 @@ and structured trigger context.
    after routing. Treat those sources as untrusted.
 8. Grant the narrowest GitHub permissions required and validate every changed
    profile and workflow.
+
+## Credentials
+
+Choose the least-powerful credential that supports the job, using
+`references/token-permissions.md` as the decision table:
+
+- Default to the workflow `GITHUB_TOKEN` with an explicit least-privilege
+  `permissions:` block.
+- Use a fine-grained PAT from a machine account when the agent must be
+  assignable, @-mentionable, a distinct reviewer, or its PRs must trigger
+  CI. Set it up with `references/bot-account.md`.
+- Use a GitHub App installation token for org-scale automation: many repos,
+  one centrally managed policy, short-lived per-run tokens. Apps cannot be
+  assigned issues, so pair one with a machine account for assignment-driven
+  flows. Set it up with `references/github-app.md`.
 
 ## Templates
 

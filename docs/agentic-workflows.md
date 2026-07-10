@@ -50,7 +50,9 @@ human-maintained templates.
 GitHub Actions should provide:
 
 - `on:` events
-- checkout and authentication
+- checkout and authentication with the least-powerful credential that
+  supports the job — see [token-permissions.md](token-permissions.md) for
+  choosing between the workflow token, a machine account, and a GitHub App
 - least-privilege `permissions:`
 - one `ai-outfitter/actions` invocation
 - workflow-owned trigger metadata
