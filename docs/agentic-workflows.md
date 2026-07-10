@@ -40,7 +40,10 @@ not require forking it.
 
 This repository publishes these rules as the standalone `outfitter-actions`
 skill; the [README](../README.md#workflow-design-skill) shows how to add the
-catalog source and select the skill from your own profile.
+catalog source and select the skill from your own profile. The skill also
+ships the repository's [`examples/`](../examples/) workflows as assets it
+adapts when scaffolding, so agents and humans start from the same
+human-maintained templates.
 
 ## Keep GitHub Actions thin
 
