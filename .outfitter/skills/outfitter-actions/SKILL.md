@@ -76,7 +76,7 @@ from scratch:
 - Implement an assigned issue or pull request: `assets/assigned-task-agent.yml`
 - Scheduled daily or weekly reports and reviews:
   `assets/scheduled-commit-review.yml`
-- Review a pull request marked ready: `assets/pr-ready-for-review.yml`
+- Review a pull request marked ready: `assets/review-undrafted-pr.yml`
 - Audit paths changed by a push: `assets/path-audit.yml`
 
 Adding a new situation should usually add a skill and one activation rule, not

@@ -45,7 +45,7 @@ jobs:
 More triggers in [`examples/`](examples/):
 
 - [`scheduled-commit-review.yml`](examples/scheduled-commit-review.yml) — cron review of recent commits
-- [`pr-ready-for-review.yml`](examples/pr-ready-for-review.yml) — review when a PR leaves draft
+- [`review-undrafted-pr.yml`](examples/review-undrafted-pr.yml) — review when a PR leaves draft
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
 - [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
