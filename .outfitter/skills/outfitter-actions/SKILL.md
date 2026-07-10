@@ -6,6 +6,10 @@ references:
   # PROFILE REPOSITORY: resolves inside the ai-outfitter/actions checkout or
   # synced catalog cache that supplied this skill. The glob keeps every
   # human-maintained doc available without re-listing new ones here.
+  # NOTE: glob targets are a proposed extension to the Outfitter reference
+  # contract (which currently defines single-file targets); this PR stays
+  # draft until Outfitter ships support. Expand to explicit entries if the
+  # contract lands without globs.
   - file: docs/*.md
 
   # REPOSITORY WHERE THE AGENT STARTED: resolves inside the active project, not

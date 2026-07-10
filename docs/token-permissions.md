@@ -2,7 +2,7 @@
 
 The agent launched by this action runs arbitrary tool calls — `gh`, `git`, shell — with whatever token you hand it. Its inputs (diffs, issue text, PR comments) are untrusted, so assume the worst prompt injection and scope the token so that even a fully hijacked agent can't do more than the job requires.
 
-There are three recommended credential options plus one shortcut. Default to the first; move up only when the job needs a capability the row names.
+There are three recommended credential options plus one shortcut. Default to the first; move to a stronger credential only when the job needs a capability listed in its row.
 
 | Credential                              | Recommended when                                                                                                                                                      | Setup                                       |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
