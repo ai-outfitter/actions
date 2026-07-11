@@ -92,7 +92,7 @@ profile and Actions job for every situation. See
 | --- | --- | --- | --- |
 | `prompt` | yes | — | Prompt passed to the agent in print mode (`pi -p "<prompt>"`). |
 | `profile` | yes | — | Outfitter profile id (`outfitter run --profile`). |
-| `profile-source` | no | — | Where the profile comes from: `owner/repo` shorthand, a git URI, or a path inside the checkout (e.g. `.outfitter/profiles`). |
+| `profile-source` | no | — | Where the profile comes from: `owner/repo` shorthand, a git URI, or a path inside the checkout (e.g. `.outfitter/profiles`). Relative paths are resolved against the workspace and written to settings as absolute paths. |
 | `profile-source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
 | `agent` | no | `pi` | Agent adapter: `pi` or `claude`. |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
