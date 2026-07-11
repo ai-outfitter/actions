@@ -63,6 +63,25 @@ inputs:
     description: Directory the agent runs in.
     required: false
     default: "."
+  transcript-artifact:
+    description: >-
+      Name of the workflow artifact to save the agent's full session
+      transcript to, as a self-contained HTML page (pi's native session
+      export). Set to an empty string to disable. Currently pi-only; ignored
+      for other agents. The artifact link is exposed as the
+      `transcript-artifact-url` output so workflows can post it back to the
+      issue or PR the agent worked on.
+    required: false
+    default: outfitter-transcript
+
+outputs:
+  transcript-artifact-url:
+    description: >-
+      URL of the uploaded transcript artifact, or empty when transcript
+      saving is disabled, unsupported for the agent, or no session was
+      written. Viewing requires being logged in to GitHub with access to
+      the repository.
+    value: ${{ steps.transcript-upload.outputs.artifact-url }}
 
 runs:
   using: composite
@@ -142,7 +161,57 @@ runs:
         OUTFITTER_AGENT: ${{ inputs.agent }}
         OUTFITTER_PROMPT: ${{ inputs.prompt }}
         OUTFITTER_STRICT: ${{ inputs.strict }}
+        TRANSCRIPT_ARTIFACT: ${{ inputs.transcript-artifact }}
       run: |
         strict_flag=""
         [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"
-        outfitter run --profile "$OUTFITTER_PROFILE" --agent "$OUTFITTER_AGENT" $strict_flag -- -p "$OUTFITTER_PROMPT"
+        set -- -p "$OUTFITTER_PROMPT"
+        # Pin the session to a known directory so the transcript steps can
+        # find and export it. pi-only: other agents don't take --session-dir.
+        if [ "$OUTFITTER_AGENT" = "pi" ] && [ -n "$TRANSCRIPT_ARTIFACT" ]; then
+          mkdir -p "$RUNNER_TEMP/outfitter-sessions"
+          set -- "$@" --session-dir "$RUNNER_TEMP/outfitter-sessions"
+        fi
+        outfitter run --profile "$OUTFITTER_PROFILE" --agent "$OUTFITTER_AGENT" $strict_flag -- "$@"
+
+    # Export the session to self-contained HTML even when the agent step
+    # failed — a transcript is most valuable for diagnosing a failed run.
+    - name: Export session transcript
+      id: transcript-export
+      if: ${{ always() && inputs.agent == 'pi' && inputs.transcript-artifact != '' }}
+      shell: bash
+      run: |
+        # Portable newest-file selection (xargs -r is GNU-only and fails on
+        # macOS runners). Session paths contain no whitespace.
+        newest=""
+        for f in $(find "$RUNNER_TEMP/outfitter-sessions" -name '*.jsonl' -type f 2>/dev/null); do
+          if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
+            newest="$f"
+          fi
+        done
+        if [ -z "$newest" ]; then
+          echo "No session file found under \$RUNNER_TEMP/outfitter-sessions; skipping transcript export." >&2
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        # pi ships as a dependency of the globally installed outfitter; npm
+        # does not link dependency bins onto PATH.
+        pi_bin="$(npm root -g)/@ai-outfitter/outfitter/node_modules/.bin/pi"
+        [ -x "$pi_bin" ] || pi_bin="$(command -v pi || true)"
+        if [ -z "$pi_bin" ]; then
+          echo "pi binary not found; skipping transcript export." >&2
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        mkdir -p "$RUNNER_TEMP/outfitter-transcript"
+        (cd "$RUNNER_TEMP/outfitter-transcript" && "$pi_bin" --export "$newest")
+        echo "found=true" >> "$GITHUB_OUTPUT"
+
+    - name: Upload session transcript
+      id: transcript-upload
+      if: ${{ always() && steps.transcript-export.outputs.found == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.transcript-artifact }}
+        path: ${{ runner.temp }}/outfitter-transcript/
+        if-no-files-found: ignore

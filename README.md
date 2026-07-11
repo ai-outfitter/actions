@@ -8,6 +8,7 @@ Wire it to any workflow trigger and you have your own Copilot-style reviewer or 
 - **When a PR is undrafted** (`ready_for_review`) — run a full review before humans look.
 - **When a commit touches a sensitive path** — audit changes to `infra/`, `auth/`, migrations, etc.
 - **When a PR or issue is assigned to your bot account** — have the agent complete the task and push a PR.
+- **On demand** (`workflow_dispatch`) — start or continue an agent-implemented PR, dispatched by an issue-triage agent, `gh workflow run`, or a local agent.
 
 ## Quick start
 
@@ -48,6 +49,8 @@ More triggers in [`examples/`](examples/):
 - [`review-undrafted-pr.yml`](examples/review-undrafted-pr.yml) — review when a PR leaves draft
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
+- [`pull-request-implementation.yml`](examples/pull-request-implementation.yml) — start or continue an agent PR on `workflow_dispatch`; see [docs/pull-request-implementation.md](docs/pull-request-implementation.md)
+- [`issue-triage-dispatch.yml`](examples/issue-triage-dispatch.yml) — triage new issues and hand fit ones off to the implementation workflow
 - [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 
 ## Workflow-design skill
@@ -97,8 +100,32 @@ profile and Actions job for every situation. See
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
 | `strict` | no | `false` | Fail when profile controls can't be translated by the adapter. |
 | `working-directory` | no | `.` | Directory the agent runs in. |
+| `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
 Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+
+## Session transcripts
+
+In print mode the agent's reasoning is invisible: the job log shows only its
+final printed line, and the issue or PR shows only its side effects. To keep
+the full decision trail, the action saves the agent's session (every prompt,
+tool call, and response) as a self-contained HTML page — pi's native
+`--export` — and uploads it as a workflow artifact named by
+`transcript-artifact` (on by default; pi only). The export runs even when the
+agent step fails, which is when a transcript matters most.
+
+The artifact's download link is exposed as the `transcript-artifact-url`
+output, so a follow-up step can post it back to the issue or PR the agent
+worked on — see [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml),
+which appends it to the agent's own triage comment. Viewing the artifact
+requires being logged in to GitHub with access to the repository, so the link
+is safe to post on public issues; artifacts expire with the repository's
+retention setting (default 90 days).
+
+Transcripts contain whatever the agent saw and did — issue text, file
+contents, command output. With the default workflow token that is content
+from the same repository, but review before enabling on jobs whose profile
+reads anything more sensitive than the repo the link is posted in.
 
 ## Using GitHub Models (no API keys)
 
