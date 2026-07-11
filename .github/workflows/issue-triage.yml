@@ -64,14 +64,14 @@ jobs:
           ISSUE: ${{ github.event.issue.number }}
           URL: ${{ steps.agent.outputs.transcript-artifact-url }}
         run: |
-          comment_id="$(gh api "repos/$REPO/issues/$ISSUE/comments" \
-            --jq '[.[] | select(.user.login == "github-actions[bot]")] | last | .id // empty')"
-          footer="$(printf '\n\n---\n<sub>🧾 <a href="%s">Full agent transcript</a> (workflow artifact; requires repo access)</sub>' "$URL")"
+          comment_id="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | .id' | tail -n 1)"
+          footer="$(printf '\n\n---\n<!-- outfitter-transcript -->\n<sub>🧾 <a href="%s">Full agent transcript</a> (workflow artifact; requires repo access)</sub>' "$URL")"
           if [ -n "$comment_id" ]; then
             gh api "repos/$REPO/issues/comments/$comment_id" --jq .body > /tmp/body.md
             # Idempotent on re-runs: keep the first transcript footer rather
             # than appending one per run.
-            if grep -qF "Full agent transcript" /tmp/body.md; then
+            if grep -qF "<!-- outfitter-transcript -->" /tmp/body.md; then
               echo "Transcript footer already present; skipping."
               exit 0
             fi
