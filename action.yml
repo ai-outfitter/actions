@@ -181,8 +181,14 @@ runs:
       if: ${{ always() && inputs.agent == 'pi' && inputs.transcript-artifact != '' }}
       shell: bash
       run: |
-        newest="$(find "$RUNNER_TEMP/outfitter-sessions" -name '*.jsonl' -type f 2>/dev/null \
-          | xargs -r ls -t 2>/dev/null | head -n 1)"
+        # Portable newest-file selection (xargs -r is GNU-only and fails on
+        # macOS runners). Session paths contain no whitespace.
+        newest=""
+        for f in $(find "$RUNNER_TEMP/outfitter-sessions" -name '*.jsonl' -type f 2>/dev/null); do
+          if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
+            newest="$f"
+          fi
+        done
         if [ -z "$newest" ]; then
           echo "No session file found under \$RUNNER_TEMP/outfitter-sessions; skipping transcript export." >&2
           echo "found=false" >> "$GITHUB_OUTPUT"

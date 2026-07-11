@@ -63,6 +63,12 @@ jobs:
           footer="$(printf '\n\n---\n<sub>🧾 <a href="%s">Full agent transcript</a> (workflow artifact; requires repo access)</sub>' "$URL")"
           if [ -n "$comment_id" ]; then
             gh api "repos/$REPO/issues/comments/$comment_id" --jq .body > /tmp/body.md
+            # Idempotent on re-runs: keep the first transcript footer rather
+            # than appending one per run.
+            if grep -qF "Full agent transcript" /tmp/body.md; then
+              echo "Transcript footer already present; skipping."
+              exit 0
+            fi
             printf '%s' "$footer" >> /tmp/body.md
             gh api -X PATCH "repos/$REPO/issues/comments/$comment_id" -F body=@/tmp/body.md > /dev/null
           else
