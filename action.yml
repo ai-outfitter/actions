@@ -20,7 +20,9 @@ inputs:
     description: >-
       Optional profile catalog to make the profile available. Accepts an
       `owner/repo` GitHub shorthand, any git-cloneable URI, or a path inside
-      the checked-out repository (e.g. `.outfitter/profiles`).
+      the checked-out repository (e.g. `.outfitter/profiles`). Relative paths
+      are resolved against the workspace and written into settings as
+      absolute paths.
     required: false
     default: ""
   profile-source-ref:
@@ -80,11 +82,18 @@ runs:
         PROFILE_SOURCE_REF: ${{ inputs.profile-source-ref }}
       run: |
         # Classify the profile source: a directory in the checkout -> path,
-        # a git URI -> uri, an owner/repo shorthand -> github.
+        # a git URI -> uri, an owner/repo shorthand -> github. Path sources
+        # are written absolute: settings.yml lives in $HOME, so a relative
+        # path would be resolved against the wrong root by outfitter.
         source_kind=""
+        source_value="$PROFILE_SOURCE"
         if [ -n "$PROFILE_SOURCE" ]; then
-          if [ -e "$PROFILE_SOURCE" ] || [ -e "$GITHUB_WORKSPACE/$PROFILE_SOURCE" ]; then
+          if [ -e "$PROFILE_SOURCE" ]; then
             source_kind="path"
+            source_value="$(realpath "$PROFILE_SOURCE")"
+          elif [ -e "$GITHUB_WORKSPACE/$PROFILE_SOURCE" ]; then
+            source_kind="path"
+            source_value="$(realpath "$GITHUB_WORKSPACE/$PROFILE_SOURCE")"
           else
             case "$PROFILE_SOURCE" in
               *://*|git+*) source_kind="uri" ;;
@@ -103,11 +112,7 @@ runs:
           echo "default_agent: $OUTFITTER_AGENT"
           if [ -n "$source_kind" ]; then
             echo "profile_sources:"
-            if [ "$source_kind" = "path" ] && [ ! -e "$PROFILE_SOURCE" ]; then
-              echo "  - $source_kind: $GITHUB_WORKSPACE/$PROFILE_SOURCE"
-            else
-              echo "  - $source_kind: $PROFILE_SOURCE"
-            fi
+            echo "  - $source_kind: $source_value"
             if [ "$source_kind" != "path" ] && [ -n "$PROFILE_SOURCE_REF" ]; then
               echo "    ref: $PROFILE_SOURCE_REF"
             fi
