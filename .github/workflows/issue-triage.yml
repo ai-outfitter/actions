@@ -39,6 +39,7 @@ jobs:
       # This repository IS the action — dogfood the checked-out version so
       # a regression in action.yml surfaces here first.
       - uses: ./
+        id: agent
         with:
           profile: issue-triage
           profile-source: ai-outfitter/default-profiles
@@ -50,6 +51,35 @@ jobs:
           prompt: >-
             Triage issue #${{ github.event.issue.number }} in
             ${{ github.repository }} following your process.
+
+      # The action saved the agent's full session as a self-contained HTML
+      # workflow artifact. Append the artifact link to the agent's own triage
+      # comment so the decision trail is one click from the issue. Runs even
+      # when the agent step failed — a transcript matters most then.
+      - name: Link transcript on the triage comment
+        if: ${{ !cancelled() && steps.agent.outputs.transcript-artifact-url != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          URL: ${{ steps.agent.outputs.transcript-artifact-url }}
+        run: |
+          comment_id="$(gh api "repos/$REPO/issues/$ISSUE/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")] | last | .id // empty')"
+          footer="$(printf '\n\n---\n<sub>🧾 <a href="%s">Full agent transcript</a> (workflow artifact; requires repo access)</sub>' "$URL")"
+          if [ -n "$comment_id" ]; then
+            gh api "repos/$REPO/issues/comments/$comment_id" --jq .body > /tmp/body.md
+            # Idempotent on re-runs: keep the first transcript footer rather
+            # than appending one per run.
+            if grep -qF "Full agent transcript" /tmp/body.md; then
+              echo "Transcript footer already present; skipping."
+              exit 0
+            fi
+            printf '%s' "$footer" >> /tmp/body.md
+            gh api -X PATCH "repos/$REPO/issues/comments/$comment_id" -F body=@/tmp/body.md > /dev/null
+          else
+            printf '%s' "$footer" | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
+          fi
 
       # A green agent run is not proof of work — validate the side effects:
       # exactly one triage label (or the unclear-issue path) and a comment.
