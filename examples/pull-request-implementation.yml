@@ -51,6 +51,7 @@ on:
 permissions:
   contents: write # push the agent/** branch
   pull-requests: write # open the draft PR
+  issues: write # allow commenting on the issue/PR thread when clarifying or reporting status
 
 concurrency:
   # Serialize per work item; ad-hoc tasks (neither issue nor pr) run unserialized.
