@@ -1,15 +1,18 @@
-# Triage every newly opened issue on GitHub Models — no API keys required.
-# The agent classifies the issue, applies a label, and comments. Inference is
-# authenticated by the workflow's own GITHUB_TOKEN via `models: read`; the
-# provider config lives in the repo (.github/models.json) and is installed
-# into pi's config dir before the action runs. See the README's
-# "Using GitHub Models (no API keys)" section for the models.json contents.
+# Triage every newly opened issue with the shared issue-triage profile from
+# ai-outfitter/default-profiles: the agent classifies it as fix/feature/idea
+# against this repo's CONTRIBUTING.md, applies that one label, and leaves a
+# comment (or asks a team member to look when unclear).
 #
-# Setup: the labels your triage profile applies must already exist in the
-# repository (`gh label create fix`, etc.) — the workflow token can add
-# existing labels to issues but the agent should not be creating labels.
-# Auth: workflow GITHUB_TOKEN — recommended for this shape (labels and comments
-# in one repo, nothing that must trigger CI). See docs/token-permissions.md.
+# Inference runs on GitHub Models — no API keys. Authenticated by the
+# workflow's own GITHUB_TOKEN via `models: read`; the provider config lives
+# in .github/models.json. See examples/issue-triage-github-models.yml, which
+# this workflow is the live copy of.
+#
+# Setup: the fix/feature/idea labels must already exist in the repository —
+# the workflow token can add existing labels but the agent should not be
+# creating labels.
+# Auth: workflow GITHUB_TOKEN — recommended for this shape (labels and
+# comments in one repo, nothing that must trigger CI).
 name: Issue triage
 on:
   issues:
@@ -33,12 +36,16 @@ jobs:
           mkdir -p "$HOME/.pi/agent"
           cp .github/models.json "$HOME/.pi/agent/models.json"
 
-      - uses: ai-outfitter/actions@v1
+      # This repository IS the action — dogfood the checked-out version so
+      # a regression in action.yml surfaces here first.
+      - uses: ./
         id: agent
         with:
           profile: issue-triage
           profile-source: ai-outfitter/default-profiles
-          profile-source-ref: main # pin a tag/commit for catalogs you don't own
+          # Pinned commit; move to the first release tag once
+          # default-profiles cuts v0.1.0.
+          profile-source-ref: 6145a26a5debb537c1f34f7ab251bbf13c1d7802
           # Pass the issue by number only; the profile fetches content with
           # `gh` so untrusted issue text never enters workflow code.
           prompt: >-
@@ -46,10 +53,9 @@ jobs:
             ${{ github.repository }} following your process.
 
       # The action saved the agent's full session as a self-contained HTML
-      # workflow artifact (input `transcript-artifact`, on by default).
-      # Append the artifact link to the agent's own triage comment so the
-      # decision trail is one click from the issue. Runs even when the agent
-      # step failed — a transcript matters most then.
+      # workflow artifact. Append the artifact link to the agent's own triage
+      # comment so the decision trail is one click from the issue. Runs even
+      # when the agent step failed — a transcript matters most then.
       - name: Link transcript on the triage comment
         if: ${{ !cancelled() && steps.agent.outputs.transcript-artifact-url != '' }}
         env:
@@ -74,3 +80,15 @@ jobs:
           else
             printf '%s' "$footer" | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
           fi
+
+      # A green agent run is not proof of work — validate the side effects:
+      # exactly one triage label (or the unclear-issue path) and a comment.
+      # The script lives in this repo, so run it from the checkout.
+      - name: Validate triage side effects
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/validate-triage.sh \
+            --repo "${{ github.repository }}" \
+            --issue "${{ github.event.issue.number }}" \
+            --allow-unlabeled
