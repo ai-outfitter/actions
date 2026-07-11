@@ -97,8 +97,32 @@ profile and Actions job for every situation. See
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
 | `strict` | no | `false` | Fail when profile controls can't be translated by the adapter. |
 | `working-directory` | no | `.` | Directory the agent runs in. |
+| `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
 Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+
+## Session transcripts
+
+In print mode the agent's reasoning is invisible: the job log shows only its
+final printed line, and the issue or PR shows only its side effects. To keep
+the full decision trail, the action saves the agent's session (every prompt,
+tool call, and response) as a self-contained HTML page — pi's native
+`--export` — and uploads it as a workflow artifact named by
+`transcript-artifact` (on by default; pi only). The export runs even when the
+agent step fails, which is when a transcript matters most.
+
+The artifact's download link is exposed as the `transcript-artifact-url`
+output, so a follow-up step can post it back to the issue or PR the agent
+worked on — see [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml),
+which appends it to the agent's own triage comment. Viewing the artifact
+requires being logged in to GitHub with access to the repository, so the link
+is safe to post on public issues; artifacts expire with the repository's
+retention setting (default 90 days).
+
+Transcripts contain whatever the agent saw and did — issue text, file
+contents, command output. With the default workflow token that is content
+from the same repository, but review before enabling on jobs whose profile
+reads anything more sensitive than the repo the link is posted in.
 
 ## Using GitHub Models (no API keys)
 
