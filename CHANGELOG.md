@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/ai-outfitter/actions/compare/v1.0.0...v1.1.0) (2026-07-11)
+
+
+### Features
+
+* publish standalone outfitter-actions skill ([#13](https://github.com/ai-outfitter/actions/issues/13)) ([58fd1ff](https://github.com/ai-outfitter/actions/commit/58fd1ff15e1fdebab95081d1323572870df3e384))
+* save the agent session transcript as an HTML workflow artifact ([#16](https://github.com/ai-outfitter/actions/issues/16)) ([26387cf](https://github.com/ai-outfitter/actions/commit/26387cfd3ae9e9b48a9dc4006e08623defa76436))
+
+
+### Bug Fixes
+
+* shorten action description to marketplace 125-char limit ([30766e3](https://github.com/ai-outfitter/actions/commit/30766e3c7ae6b1c1a25cce6f20e271ecc1a9fe29))
+
 ## 1.0.0 (2026-07-09)
 
 
