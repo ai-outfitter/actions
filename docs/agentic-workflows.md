@@ -128,9 +128,18 @@ policy.
 ### Issue planning and implementation
 
 On issue creation, activate an issue-planning skill for `fix`, `feat`, or `idea`
-labels. Let it investigate, propose a plan in a comment, and assign the platform
-account when implementation is ready. An assignment event can then activate an
-implementation skill using the same profile and workflow.
+labels. Let it investigate, propose a plan in a comment, and hand off when
+implementation is ready. Two handoff shapes:
+
+- **Dispatch (default)** — the planning agent runs
+  `gh workflow run pull-request-implementation.yml -f issue=<n>`; its own
+  workflow token only needs `actions: write`, and the same dispatch entry
+  point serves humans and local agents. See
+  [pull-request-implementation.md](pull-request-implementation.md).
+- **Assignment** — the planning agent assigns the platform's machine account,
+  and an assignment event activates an implementation skill using the same
+  profile and workflow. Requires the account to exist and burns a no-op run
+  per unrelated assignment; keep it for teams that want the issue-sidebar UX.
 
 ### Weekly KPI report
 
