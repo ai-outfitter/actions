@@ -1,0 +1,47 @@
+# Triage every newly opened issue and, when one is fit and ready, hand it off
+# to the pull-request-implementation workflow via `gh workflow run`.
+#
+# The handoff works on the plain workflow token: workflow_dispatch is an
+# explicit exception to the GITHUB_TOKEN recursion guard, so this run CAN
+# dispatch the implementation run — it only needs `actions: write`. No PAT,
+# App, or machine account is required at the triage stage; the stronger
+# credential lives solely in pull-request-implementation.yml where the PR is
+# actually made.
+name: Issue triage
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  actions: write # lets the agent dispatch pull-request-implementation.yml
+
+jobs:
+  triage:
+    # Never triage issues the automation itself opened.
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ai-outfitter/actions@v1
+        with:
+          profile: issue-triage
+          profile-source: my-org/outfitter-catalog
+          profile-source-ref: v1.2.0
+          # Pass the issue by number only; the agent fetches content with `gh`
+          # so untrusted text never enters workflow code.
+          prompt: >-
+            Triage issue #${{ github.event.issue.number }} in
+            ${{ github.repository }} following your triage process. If — and
+            only if — the issue is well scoped, fits the project's documented
+            goals, and is ready to implement without further human input,
+            hand it off by running:
+            gh workflow run pull-request-implementation.yml
+            -f issue=${{ github.event.issue.number }}
+            and comment on the issue that implementation was started.
+            Otherwise label and comment per your process and stop; never hand
+            off an issue you would not label agent-ready.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

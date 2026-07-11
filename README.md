@@ -8,6 +8,7 @@ Wire it to any workflow trigger and you have your own Copilot-style reviewer or 
 - **When a PR is undrafted** (`ready_for_review`) — run a full review before humans look.
 - **When a commit touches a sensitive path** — audit changes to `infra/`, `auth/`, migrations, etc.
 - **When a PR or issue is assigned to your bot account** — have the agent complete the task and push a PR.
+- **On demand** (`workflow_dispatch`) — start or continue an agent-implemented PR, dispatched by an issue-triage agent, `gh workflow run`, or a local agent.
 
 ## Quick start
 
@@ -48,6 +49,8 @@ More triggers in [`examples/`](examples/):
 - [`review-undrafted-pr.yml`](examples/review-undrafted-pr.yml) — review when a PR leaves draft
 - [`path-audit.yml`](examples/path-audit.yml) — audit pushes to specific directories
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
+- [`pull-request-implementation.yml`](examples/pull-request-implementation.yml) — start or continue an agent PR on `workflow_dispatch`; see [docs/pull-request-implementation.md](docs/pull-request-implementation.md)
+- [`issue-triage-dispatch.yml`](examples/issue-triage-dispatch.yml) — triage new issues and hand fit ones off to the implementation workflow
 - [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 
 ## Workflow-design skill
