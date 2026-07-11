@@ -12,11 +12,16 @@
 # so a plain-token triage workflow can dispatch this one. The file must live on
 # the default branch before it can be dispatched.
 #
-# Auth: a GitHub App token (minted per run, no server, no seat) so the draft PR
-# the agent opens triggers CI and review workflows — see docs/github-app.md.
-# Swap in a machine-account PAT (docs/bot-account.md) if you also run
-# assignment-triggered flows; plain GITHUB_TOKEN works only if you accept that
-# the agent's PRs get no CI and the "allow Actions to create PRs" setting is on.
+# Auth: the workflow's own GITHUB_TOKEN — no App, PAT, or machine account.
+# Two things to know (see docs/pull-request-implementation.md):
+#   - "Allow GitHub Actions to create and approve pull requests" must be
+#     enabled (Settings → Actions → General), or `gh pr create` fails.
+#   - Workflows on the PR the agent opens are held until a maintainer clicks
+#     "Approve and run" — the same human CI gate Copilot's coding agent uses
+#     by default. Swap in a GitHub App token (docs/github-app.md) when you
+#     want agent PRs to run CI automatically, or a machine-account PAT
+#     (docs/bot-account.md) for assignment UX; both flow through the same
+#     github-token input.
 name: Pull request implementation
 run-name: "Agent implementation (issue=${{ inputs.issue || '-' }} pr=${{ inputs.pr || '-' }})"
 on:
@@ -43,7 +48,9 @@ on:
         required: false
         default: ""
 
-permissions: {} # the App token carries all access; the workflow token gets none
+permissions:
+  contents: write # push the agent/** branch
+  pull-requests: write # open the draft PR
 
 concurrency:
   # Serialize per work item; ad-hoc tasks (neither issue nor pr) run unserialized.
@@ -57,20 +64,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45 # Copilot caps at 59; a runaway agent should not run all day
     steps:
-      - uses: actions/create-github-app-token@v2
-        id: app-token
-        with:
-          app-id: ${{ vars.OUTFITTER_APP_ID }}
-          private-key: ${{ secrets.OUTFITTER_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v4
         with:
-          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          git-user-name: myorg-outfitter[bot]
-          git-user-email: myorg-outfitter[bot]@users.noreply.github.com
+          git-user-name: github-actions[bot]
+          git-user-email: 41898282+github-actions[bot]@users.noreply.github.com
           profile: task-agent
           profile-source: my-org/outfitter-catalog
           profile-source-ref: v1.2.0

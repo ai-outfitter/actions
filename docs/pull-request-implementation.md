@@ -77,19 +77,26 @@ The dispatch *trigger* needs nothing special. The credential question is about
 the implementation job itself, because it pushes a branch and opens a PR — see
 [token-permissions.md](token-permissions.md) for the full decision table:
 
-1. **GitHub App token (recommended default)** — mint per run with
-   `actions/create-github-app-token` ([github-app.md](github-app.md)). The
-   draft PR it opens **triggers CI and your PR-review agent** (App events are
-   not suppressed the way `GITHUB_TOKEN`'s are), attribution is a clean
-   `[bot]`, there is no seat and no server. This is what the example ships.
-2. **Machine-account PAT** — everything the App token does, plus the bot
+1. **Plain `GITHUB_TOKEN` (start here — what the example ships).** Zero
+   credential setup: `contents: write` to push the `agent/**` branch,
+   `pull-requests: write` plus the repo setting **"Allow GitHub Actions to
+   create and approve pull requests"** (Settings → Actions → General) to open
+   the draft PR. One behavior to understand, not a blocker: because
+   `GITHUB_TOKEN` events don't trigger workflows, runs on the agent's PR are
+   held until a maintainer clicks **"Approve and run"**. That is the same
+   human CI gate Copilot's coding agent uses by default — a review checkpoint,
+   and arguably the right posture while you're building trust in the loop.
+   Attribution is `github-actions[bot]`.
+2. **GitHub App token — the upgrade when the approval click gets old.** Mint
+   per run with `actions/create-github-app-token` ([github-app.md](github-app.md)).
+   The draft PR then **triggers CI and your PR-review agent automatically**
+   (App events are not suppressed the way `GITHUB_TOKEN`'s are), attribution
+   is your own `[bot]`, still no seat and no server — at the cost of one-time
+   App registration and a private key to protect.
+3. **Machine-account PAT** — everything the App token does, plus the bot
    becomes assignable/mentionable ([bot-account.md](bot-account.md)). Choose
    it when you *also* want the assignment UX; the same implementation profile
    serves both `assigned-task-agent.yml` and this workflow.
-3. **Plain `GITHUB_TOKEN`** — workable only if you accept that the agent's
-   PRs get no CI (recursion guard) and you enable "Allow GitHub Actions to
-   create and approve pull requests" in repo settings. Fine for a first
-   trial, not for the real loop.
 
 ## The safety envelope
 
@@ -100,8 +107,13 @@ generic Actions can express:
   own work; keep it out of CODEOWNERS and behind branch protection.
 - **`agent/**` branch namespace** — the agent creates and pushes only its own
   branches; protect everything else.
-- **`permissions: {}`** on the workflow token when an App token or PAT
-  carries the access.
+- **Least-privilege `permissions:`** — `contents: write` +
+  `pull-requests: write` on the default setup; shrink to `permissions: {}`
+  when an App token or PAT carries the access instead.
+- **Human CI gate by default** — with the plain workflow token, the agent's
+  PR checks wait for a maintainer's approval, mirroring Copilot's default.
+  Upgrading to an App token removes that gate; compensate with required
+  checks, branch protection, and the PR-review agent.
 - **IDs in, bodies never** — the prompt carries issue/PR *numbers*; the agent
   fetches content with `gh` and treats it as data. The `task` input is free
   text, but dispatching requires write access, so it carries
@@ -119,6 +131,7 @@ generic Actions can express:
 right shape when your team wants the issue-sidebar UX and already operates a
 machine account — it is sugar over the same implementation profile. Teams
 starting fresh should start dispatch-first and add assignment later if anyone
-misses it. The migration ladder is: workflow token → App token (this page's
-default) → machine account (assignment UX) → webhook-server App only when
-no-op volume or cross-repo policy genuinely demands pre-compute filtering.
+misses it. The migration ladder is: workflow token (this page's default) →
+App token (automatic CI on agent PRs) → machine account (assignment UX) →
+webhook-server App only when no-op volume or cross-repo policy genuinely
+demands pre-compute filtering.
