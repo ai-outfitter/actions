@@ -86,6 +86,10 @@ structured trigger context, and reusable workflows instead of a separate
 profile and Actions job for every situation. See
 [Designing agentic workflows](docs/agentic-workflows.md).
 
+Running more than a couple of these in one repo or org? See
+[docs/design-considerations.md](docs/design-considerations.md) for how to
+structure a growing set of agent workflows.
+
 ## Inputs
 
 | Input | Required | Default | Description |
