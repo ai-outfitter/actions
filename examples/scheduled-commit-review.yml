@@ -21,9 +21,9 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
-          profile: reviewer
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: reviewer
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           prompt: >-
             Review the commits on the default branch of ${{ github.repository }}
             from the last 24 hours (`git log --since="24 hours ago" -p`).

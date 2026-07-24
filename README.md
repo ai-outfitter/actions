@@ -1,6 +1,6 @@
 # ai-outfitter/actions
 
-Run an [Outfitter](https://github.com/ai-outfitter/outfitter) profile from GitHub Actions. Outfitter assembles the profile (context, prompts, skills, extensions) and launches the agent CLI — [`pi`](https://github.com/earendil-works/pi-coding-agent) by default — in headless print mode (`pi -p`), so the agent does one unit of work per workflow run and exits.
+Run an [Outfitter](https://github.com/ai-outfitter/outfitter) agent from GitHub Actions. Outfitter resolves and composes the agent (identity, skills, subagents, MCP servers) — the same loadout it would compose locally — and launches the harness CLI — [`pi`](https://github.com/earendil-works/pi-coding-agent) by default — in headless print mode (`pi -p`), so the agent does one unit of work per workflow run and exits.
 
 Wire it to any workflow trigger and you have your own Copilot-style reviewer or task agent:
 
@@ -32,9 +32,9 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
-          profile: reviewer
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: reviewer
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           prompt: >-
             Review pull request #${{ github.event.pull_request.number }} in
             ${{ github.repository }}. Use `gh pr diff` and `gh pr view` to read
@@ -42,6 +42,8 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
+
+If the repository you check out carries its own `.agents` tree, point `source` at the checkout instead of a remote catalog (`source: ${{ github.workspace }}` for a standalone payload at the repository root, or `source: ${{ github.workspace }}/.agents` inside a project) — the run then composes exactly what a local run of that tree would.
 
 More triggers in [`examples/`](examples/):
 
@@ -57,52 +59,53 @@ More triggers in [`examples/`](examples/):
 
 This repository publishes the standalone `outfitter-actions` skill for setting
 up and reviewing agentic workflows. Register the repository as an Outfitter
-catalog source:
+source:
 
 ```yaml
-# ~/.outfitter/settings.yml
-profile_sources:
+# ~/.agents/settings.yml
+sources:
   - github: ai-outfitter/actions
     ref: v1
     path: .outfitter
-  - path: ./profiles
 ```
 
-Then select the skill by ID from your own platform profile:
+Then select the skill by slug from your own platform agent:
 
-```yaml
-# ~/.outfitter/profiles/platform/profile.yml
-id: platform
-label: Platform
-
-controls:
-  skills:
-    - outfitter-actions
+```markdown
+---
+# .agents/agents/platform/agent.md
+name: platform
+description: Platform-engineering agent.
+skills: [outfitter-actions]
+---
 ```
 
-The profile does not inherit anything from this repository. The skill guides
-the agent toward a few stable profiles, many progressively disclosed skills,
+The agent does not inherit anything else from this repository. The skill guides
+the agent toward a few stable agents, many progressively disclosed skills,
 structured trigger context, and reusable workflows instead of a separate
-profile and Actions job for every situation. See
+agent and Actions job for every situation. See
 [Designing agentic workflows](docs/agentic-workflows.md).
 
 ## Inputs
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `prompt` | yes | — | Prompt passed to the agent in print mode (`pi -p "<prompt>"`). |
-| `profile` | yes | — | Outfitter profile id (`outfitter run --profile`). |
-| `profile-source` | no | — | Where the profile comes from: `owner/repo` shorthand, a git URI, or a path inside the checkout (e.g. `.outfitter/profiles`). |
-| `profile-source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
-| `agent` | no | `pi` | Agent adapter: `pi` or `claude`. |
+| `prompt` | no* | — | Prompt passed to the harness in print mode (`pi -p "<prompt>"`). |
+| `inputs` | no* | — | Structured inputs as a YAML mapping of workflow-owned identifiers (issue numbers, SHAs); appended to the prompt as an `inputs:` block. *At least one of `prompt`/`inputs` is required. |
+| `agent` | no | tree's `default_agent` | Agent slug to run (`outfitter run <agent>`). |
+| `source` | no | — | Where the agent comes from: `owner/repo` shorthand, a git URI, or a path such as `${{ github.workspace }}`. |
+| `source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin sources you don't own. |
+| `harness` | no | `pi` | Harness to launch: `pi` or `claude`. |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
-| `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
-| `strict` | no | `false` | Fail when profile controls can't be translated by the adapter. |
+| `outfitter-version` | no | `^1.0.2` | `@ai-outfitter/outfitter` npm version range to install (kept inside 1.x, the CLI surface this action targets). |
+| `strict` | no | `false` | Fail when the adapter cannot project part of the composition. |
 | `working-directory` | no | `.` | Directory the agent runs in. |
 | `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
-Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the agent's `model:` selects. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+
+Pass only workflow-owned identifiers through `inputs`/`prompt` — issue numbers, SHAs, repository names. Never interpolate issue bodies, PR bodies, comments, or diffs: the agent fetches untrusted source material itself with trusted tools.
 
 ## Session transcripts
 
@@ -124,7 +127,7 @@ retention setting (default 90 days).
 
 Transcripts contain whatever the agent saw and did — issue text, file
 contents, command output. With the default workflow token that is content
-from the same repository, but review before enabling on jobs whose profile
+from the same repository, but review before enabling on jobs whose agent
 reads anything more sensitive than the repo the link is posted in.
 
 ## Using GitHub Models (no API keys)
@@ -167,7 +170,7 @@ permissions:
     cp .github/models.json "$HOME/.pi/agent/models.json"
 ```
 
-Then select the provider in the profile's `controls` (`provider: github-models`, `model: openai/gpt-4.1-mini`). See [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) for a complete workflow.
+Then select the model in the agent's frontmatter (`model: openai/gpt-4.1-mini` in `agent.md`, resolved from the tree's `models.json`). See [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) for a complete workflow.
 
 **Choosing a model.** Three gotchas found by running this in anger:
 
@@ -190,20 +193,20 @@ The short version:
 ### Trust boundaries to keep in mind
 
 - The prompt, the diff under review, and issue/PR text are all **untrusted input** to the agent. Assume prompt injection: a PR under review can contain text that tries to redirect the agent. The token's scope — not the prompt — is your real control.
-- Avoid interpolating attacker-controlled text (PR titles, issue bodies) directly into `prompt:` via `${{ }}`. Reference the PR/issue by number and let the agent fetch content with `gh`, so the untrusted text stays data rather than becoming workflow-file code.
-- When the agent posts text derived from untrusted input (issue bodies, diffs) back through `gh`, its profile should require `--body-file` with a quoted heredoc, never inline `--body "..."` — backticks in a double-quoted body are executed by the shell, turning quoted issue text into command execution on the runner. (Observed live: a comment restating `` `outfitter sync` `` ran the command.)
-- Pin `profile-source-ref` for catalogs you don't own — profiles can inject extensions, CLI args, and environment variables into the agent launch ([trust and review](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/profile-repository.md#trust-and-review)).
+- Avoid interpolating attacker-controlled text (PR titles, issue bodies) directly into `prompt:`/`inputs:` via `${{ }}`. Reference the PR/issue by number and let the agent fetch content with `gh`, so the untrusted text stays data rather than becoming workflow-file code.
+- When the agent posts text derived from untrusted input (issue bodies, diffs) back through `gh`, its instructions should require `--body-file` with a quoted heredoc, never inline `--body "..."` — backticks in a double-quoted body are executed by the shell, turning quoted issue text into command execution on the runner. (Observed live: a comment restating `` `outfitter sync` `` ran the command.)
+- Pin `source-ref` for sources you don't own — ideally to a full commit SHA. A `.agents` source can inject extensions, CLI args, and environment variables into the agent launch ([trust and review](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/catalogs.md#trust-and-review)).
 - Don't run this action on `pull_request_target` with a write token against untrusted fork code.
 
 ## How it works
 
-Each run installs `@ai-outfitter/outfitter`, writes a minimal `~/.outfitter/settings.yml` on the runner (default profile/agent plus your `profile-source`), syncs remote catalogs, then executes:
+Each run installs `@ai-outfitter/outfitter` (1.x), registers your `source` in `~/.agents/settings.yml` on the runner (`sources:` list), syncs remote sources, then executes:
 
 ```bash
-outfitter run --profile <profile> --agent pi -- -p "<prompt>"
+outfitter run <agent> --harness pi -- -p "<prompt>"
 ```
 
-Outfitter composes the profile into agent configuration and launches `pi` in print mode; `pi` inherits `GH_TOKEN`, does its work with `gh`/`git`/the tools the profile grants, prints its result to the job log, and exits. The runner is discarded afterwards — nothing persists between runs except what the agent pushed through the token.
+Outfitter resolves the agent across its settings layers (the checkout's own `.agents` tree included), composes its loadout into harness configuration, and launches `pi` in print mode; `pi` inherits `GH_TOKEN`, does its work with `gh`/`git`/the tools the agent grants, prints its result to the job log, and exits. The runner is discarded afterwards — nothing persists between runs except what the agent pushed through the token.
 
 ## License
 

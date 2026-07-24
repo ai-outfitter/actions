@@ -28,7 +28,7 @@ There are three recommended credential options plus one shortcut. Default to the
 - **GitHub App workflows are fleet automation.** The same reusable workflow is
   installed across many repositories under one org-managed policy: nightly
   reports across a portfolio, org-wide dependency or convention sweeps, a
-  platform profile serving every product repo. Each run mints its own
+  platform agent serving every product repo. Each run mints its own
   short-lived token; nothing long-lived exists to rotate per repo.
 - **A personal PAT is the ten-minute trial.** It gets an experiment running on
   your own repository with zero setup, but it carries everything your account
@@ -82,7 +82,7 @@ Store the PAT as an Actions secret (repo-level, or org-level restricted to the r
 - uses: ai-outfitter/actions@v1
   with:
     github-token: ${{ secrets.OUTFITTER_BOT_TOKEN }}
-    profile: task-agent
+    agent: task-agent
     prompt: "..."
 ```
 
@@ -99,9 +99,9 @@ For organizations that want installation-scoped, auto-expiring tokens with a bot
 ## Hardening checklist
 
 - [ ] `permissions:` block declared explicitly on every workflow using this action.
-- [ ] Secrets (`ANTHROPIC_API_KEY`, bot PAT) stored as Actions secrets, never in the workflow file or profile catalog.
+- [ ] Secrets (`ANTHROPIC_API_KEY`, bot PAT) stored as Actions secrets, never in the workflow file or agent catalog.
 - [ ] Fine-grained PAT: selected-repos only, minimum permissions, expiration set, owned by the machine account.
 - [ ] No `pull_request_target` + write token + untrusted fork code in the same workflow.
 - [ ] Untrusted text (PR titles/bodies, issue bodies) is not interpolated into `prompt:` — the agent fetches it with `gh` instead.
-- [ ] `profile-source-ref` pinned for any catalog your team doesn't control.
+- [ ] `source-ref` pinned for any source your team doesn't control.
 - [ ] For environments-based gating (deploy keys, production secrets), put the agent job behind a GitHub Environment with required reviewers.

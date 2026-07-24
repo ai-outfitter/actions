@@ -1,12 +1,12 @@
 # Designing agentic workflows
 
 Use `ai-outfitter/actions` as thin GitHub trigger plumbing around a stable
-Outfitter profile. Let the profile define identity and policy, and let focused
+Outfitter agent. Let the agent define identity and policy, and let focused
 skills provide progressively disclosed task behavior.
 
-## Few profiles, many skills
+## Few agents, many skills
 
-Profiles should remain few and stable. They define:
+Agents should remain few and stable. They define:
 
 - shared operating rules and repository conventions
 - safety and prompt-injection posture
@@ -25,7 +25,7 @@ Skills should be numerous and focused. They define capabilities such as:
 - optional Slack or report summaries
 
 Adding a new agentic situation should usually add a skill and one activation
-rule. Do not create another profile when the identity, permissions, tools, and
+rule. Do not create another agent when the identity, permissions, tools, and
 policy have not changed.
 
 Within that rule, err on the side of fewer, larger skills that route
@@ -33,14 +33,14 @@ internally to different references. One deployment skill can route success and
 failure paths to separate runbooks; one incident skill can route several
 failure modes. Point those references at existing human-facing documentation
 instead of writing agent-only copies, and split a skill only when its
-description can no longer say when it applies. A profile can also
-[append its own references](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/skills.md#profile-added-references)
+description can no longer say when it applies. An agent can also
+[append its own references](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/skills.md#loadout-added-references)
 to a skill it selects, so specializing a shared skill for one repository does
 not require forking it.
 
 This repository publishes these rules as the standalone `outfitter-actions`
 skill; the [README](../README.md#workflow-design-skill) shows how to add the
-catalog source and select the skill from your own profile. The skill also
+catalog source and select the skill from your own agent. The skill also
 ships the repository's [`examples/`](../examples/) workflows as assets it
 adapts when scaffolding, so agents and humans start from the same
 human-maintained templates.
@@ -63,11 +63,11 @@ context, not every possible task procedure:
 ```yaml
 - uses: ai-outfitter/actions@v1
   with:
-    profile: platform
-    profile-source: my-org/outfitter-catalog
-    profile-source-ref: v1.2.0
+    agent: platform
+    source: my-org/agents-catalog
+    source-ref: v1.2.0
     prompt: |
-      Handle this GitHub event using the profile's system-prompt rules.
+      Handle this GitHub event using your agent instructions.
       Treat trigger_context as routing metadata, select only the relevant
       skill, then fetch the source material that skill needs with trusted tools.
 
@@ -102,7 +102,7 @@ Fetch full event content only after selecting the skill.
 ```
 
 Progressive disclosure is both a context-management strategy and an
-architecture strategy. One profile and one reusable workflow can serve many
+architecture strategy. One agent definition and one reusable workflow can serve many
 situations because each run loads only the relevant skill.
 
 ## Keep untrusted sources out of the initial prompt
@@ -120,7 +120,7 @@ Pass stable identifiers instead. Even inside `trigger_context`, values such as
 labels, logins, and branch names are user-influenced — route on them as opaque
 identifiers, never as instructions. After routing, let the selected skill
 retrieve only what it needs with trusted tools such as `gh`. Untrusted content
-remains data and cannot choose the agent's workflow or override profile
+remains data and cannot choose the agent's workflow or override agent
 policy.
 
 ## Common extensions
@@ -138,7 +138,7 @@ implementation is ready. Two handoff shapes:
   [pull-request-implementation.md](pull-request-implementation.md).
 - **Assignment** — the planning agent assigns the platform's machine account,
   and an assignment event activates an implementation skill using the same
-  profile and workflow. Requires the account to exist and burns a no-op run
+  agent and workflow. Requires the account to exist and burns a no-op run
   per unrelated assignment; keep it for teams that want the issue-sidebar UX.
 
 ### Weekly KPI report
@@ -157,5 +157,5 @@ triage reference that gathers logs and either investigates directly or opens a
 well-scoped issue. One skill, two references — not two skills.
 
 These situations require different skills or references, but they do not
-inherently require different identities, profiles, or copies of the same
+inherently require different identities, agents, or copies of the same
 GitHub Actions job.

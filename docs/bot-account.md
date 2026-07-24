@@ -37,9 +37,9 @@ jobs:
           github-token: ${{ secrets.OUTFITTER_BOT_TOKEN }}
           git-user-name: myorg-outfitter-bot
           git-user-email: outfitter-bot@myorg.com
-          profile: task-agent
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: task-agent
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           prompt: >-
             You are assigned issue #${{ github.event.issue.number }} in
             ${{ github.repository }}. Read it with `gh issue view`, implement
