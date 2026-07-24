@@ -1,7 +1,7 @@
-name: Run Outfitter Profile
+name: Run Outfitter Agent
 description: >-
-  Run an Outfitter profile headless in GitHub Actions to build scheduled
-  commit reviewers, PR reviewers, or task agents.
+  Run an Outfitter agent headless in GitHub Actions to build scheduled
+  reviewers, PR reviewers, issue triagers, or task agents.
 author: ai-outfitter
 branding:
   icon: compass
@@ -10,28 +10,43 @@ branding:
 inputs:
   prompt:
     description: >-
-      The prompt passed to the agent in print mode. The agent runs headless,
-      does its work, prints its result, and exits.
-    required: true
-  profile:
-    description: Outfitter profile id to run (passed as `outfitter run --profile`).
-    required: true
-  profile-source:
-    description: >-
-      Optional profile catalog to make the profile available. Accepts an
-      `owner/repo` GitHub shorthand, any git-cloneable URI, or a path inside
-      the checked-out repository (e.g. `.outfitter/profiles`).
+      The prompt passed to the harness in print mode. The agent runs headless,
+      does its work, prints its result, and exits. Optional when `inputs` is
+      set; at least one of the two is required.
     required: false
     default: ""
-  profile-source-ref:
+  inputs:
     description: >-
-      Optional tag, branch, or commit to pin a remote profile-source to.
-      Strongly recommended for catalogs you do not own — an unpinned source
-      runs whatever the catalog publishes next.
+      Structured inputs for the agent, as a YAML mapping of workflow-owned
+      event identifiers (issue numbers, SHAs, repository names). Appended to
+      the prompt as an `inputs:` block. Pass only trusted identifiers here —
+      never issue/PR bodies or other user-influenced text.
     required: false
     default: ""
   agent:
-    description: "Agent adapter to launch: pi or claude."
+    description: >-
+      Agent slug to run (passed positionally as `outfitter run <agent>`).
+      When empty, Outfitter falls back to the `default_agent` from the
+      resolved settings layers (e.g. the checkout's `.agents/settings.yml`).
+    required: false
+    default: ""
+  source:
+    description: >-
+      Optional `.agents` source to make the agent available. Accepts an
+      `owner/repo` GitHub shorthand, any git-cloneable URI, or a path inside
+      the checked-out repository (e.g. `${{ github.workspace }}` for a
+      standalone `.agents` payload at the repository root).
+    required: false
+    default: ""
+  source-ref:
+    description: >-
+      Optional tag, branch, or commit to pin a remote source to. Strongly
+      recommended for sources you do not own — an unpinned source runs
+      whatever the catalog publishes next.
+    required: false
+    default: ""
+  harness:
+    description: "Harness to launch: pi or claude."
     required: false
     default: pi
   github-token:
@@ -52,11 +67,14 @@ inputs:
     required: false
     default: ""
   outfitter-version:
-    description: "@ai-outfitter/outfitter version to install."
+    description: >-
+      npm version range of @ai-outfitter/outfitter to install. Defaults to
+      the newest 1.x release — the CLI surface this action targets — so a
+      future outfitter major cannot break pinned workflows.
     required: false
-    default: latest
+    default: "^1.0.2"
   strict:
-    description: Fail instead of warning when profile controls cannot be translated by the adapter.
+    description: Fail instead of warning when the adapter cannot project part of the composition.
     required: false
     default: "false"
   working-directory:
@@ -68,7 +86,7 @@ inputs:
       Name of the workflow artifact to save the agent's full session
       transcript to, as a self-contained HTML page (pi's native session
       export). Set to an empty string to disable. Currently pi-only; ignored
-      for other agents. The artifact link is exposed as the
+      for other harnesses. The artifact link is exposed as the
       `transcript-artifact-url` output so workflows can post it back to the
       issue or PR the agent worked on.
     required: false
@@ -78,7 +96,7 @@ outputs:
   transcript-artifact-url:
     description: >-
       URL of the uploaded transcript artifact, or empty when transcript
-      saving is disabled, unsupported for the agent, or no session was
+      saving is disabled, unsupported for the harness, or no session was
       written. Viewing requires being logged in to GitHub with access to
       the repository.
     value: ${{ steps.transcript-upload.outputs.artifact-url }}
@@ -93,48 +111,44 @@ runs:
     - name: Configure Outfitter settings
       shell: bash
       env:
-        OUTFITTER_PROFILE: ${{ inputs.profile }}
-        OUTFITTER_AGENT: ${{ inputs.agent }}
-        PROFILE_SOURCE: ${{ inputs.profile-source }}
-        PROFILE_SOURCE_REF: ${{ inputs.profile-source-ref }}
+        AGENT_SOURCE: ${{ inputs.source }}
+        AGENT_SOURCE_REF: ${{ inputs.source-ref }}
       run: |
-        # Classify the profile source: a directory in the checkout -> path,
+        # Classify the source: a directory in the checkout -> path,
         # a git URI -> uri, an owner/repo shorthand -> github.
         source_kind=""
-        if [ -n "$PROFILE_SOURCE" ]; then
-          if [ -e "$PROFILE_SOURCE" ] || [ -e "$GITHUB_WORKSPACE/$PROFILE_SOURCE" ]; then
+        if [ -n "$AGENT_SOURCE" ]; then
+          if [ -e "$AGENT_SOURCE" ] || [ -e "$GITHUB_WORKSPACE/$AGENT_SOURCE" ]; then
             source_kind="path"
           else
-            case "$PROFILE_SOURCE" in
+            case "$AGENT_SOURCE" in
               *://*|git+*) source_kind="uri" ;;
               */*) source_kind="github" ;;
               *)
-                echo "profile-source '$PROFILE_SOURCE' is neither an existing path, a git URI, nor an owner/repo shorthand" >&2
+                echo "source '$AGENT_SOURCE' is neither an existing path, a git URI, nor an owner/repo shorthand" >&2
                 exit 1
                 ;;
             esac
           fi
         fi
 
-        mkdir -p "$HOME/.outfitter"
-        {
-          echo "default_profile: $OUTFITTER_PROFILE"
-          echo "default_agent: $OUTFITTER_AGENT"
-          if [ -n "$source_kind" ]; then
-            echo "profile_sources:"
-            if [ "$source_kind" = "path" ] && [ ! -e "$PROFILE_SOURCE" ]; then
-              echo "  - $source_kind: $GITHUB_WORKSPACE/$PROFILE_SOURCE"
+        if [ -n "$source_kind" ]; then
+          mkdir -p "$HOME/.agents"
+          {
+            echo "sources:"
+            if [ "$source_kind" = "path" ] && [ ! -e "$AGENT_SOURCE" ]; then
+              echo "  - $source_kind: $GITHUB_WORKSPACE/$AGENT_SOURCE"
             else
-              echo "  - $source_kind: $PROFILE_SOURCE"
+              echo "  - $source_kind: $AGENT_SOURCE"
             fi
-            if [ "$source_kind" != "path" ] && [ -n "$PROFILE_SOURCE_REF" ]; then
-              echo "    ref: $PROFILE_SOURCE_REF"
+            if [ "$source_kind" != "path" ] && [ -n "$AGENT_SOURCE_REF" ]; then
+              echo "    ref: $AGENT_SOURCE_REF"
             fi
-          fi
-        } > "$HOME/.outfitter/settings.yml"
+          } > "$HOME/.agents/settings.yml"
 
-        if [ "$source_kind" = "uri" ] || [ "$source_kind" = "github" ]; then
-          outfitter sync
+          if [ "$source_kind" = "uri" ] || [ "$source_kind" = "github" ]; then
+            outfitter sync
+          fi
         fi
 
     - name: Configure git identity
@@ -157,28 +171,48 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        OUTFITTER_PROFILE: ${{ inputs.profile }}
         OUTFITTER_AGENT: ${{ inputs.agent }}
+        OUTFITTER_HARNESS: ${{ inputs.harness }}
         OUTFITTER_PROMPT: ${{ inputs.prompt }}
+        OUTFITTER_INPUTS: ${{ inputs.inputs }}
         OUTFITTER_STRICT: ${{ inputs.strict }}
         TRANSCRIPT_ARTIFACT: ${{ inputs.transcript-artifact }}
       run: |
-        strict_flag=""
-        [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"
-        set -- -p "$OUTFITTER_PROMPT"
-        # Pin the session to a known directory so the transcript steps can
-        # find and export it. pi-only: other agents don't take --session-dir.
-        if [ "$OUTFITTER_AGENT" = "pi" ] && [ -n "$TRANSCRIPT_ARTIFACT" ]; then
-          mkdir -p "$RUNNER_TEMP/outfitter-sessions"
-          set -- "$@" --session-dir "$RUNNER_TEMP/outfitter-sessions"
+        if [ -z "$OUTFITTER_PROMPT" ] && [ -z "$OUTFITTER_INPUTS" ]; then
+          echo "At least one of 'prompt' or 'inputs' must be set." >&2
+          exit 1
         fi
-        outfitter run --profile "$OUTFITTER_PROFILE" --agent "$OUTFITTER_AGENT" $strict_flag -- "$@"
+
+        prompt="$OUTFITTER_PROMPT"
+        if [ -n "$OUTFITTER_INPUTS" ]; then
+          if [ -z "$prompt" ]; then
+            prompt="Handle this run following your agent instructions, using these structured inputs."
+          fi
+          prompt="$prompt
+
+        inputs:
+        $(printf '%s\n' "$OUTFITTER_INPUTS" | sed 's/^/  /')"
+        fi
+
+        run_args=(run)
+        [ -n "$OUTFITTER_AGENT" ] && run_args+=("$OUTFITTER_AGENT")
+        run_args+=(--harness "$OUTFITTER_HARNESS")
+        [ "$OUTFITTER_STRICT" = "true" ] && run_args+=(--strict)
+
+        harness_args=(-p "$prompt")
+        # Pin the session to a known directory so the transcript steps can
+        # find and export it. pi-only: other harnesses don't take --session-dir.
+        if [ "$OUTFITTER_HARNESS" = "pi" ] && [ -n "$TRANSCRIPT_ARTIFACT" ]; then
+          mkdir -p "$RUNNER_TEMP/outfitter-sessions"
+          harness_args+=(--session-dir "$RUNNER_TEMP/outfitter-sessions")
+        fi
+        outfitter "${run_args[@]}" -- "${harness_args[@]}"
 
     # Export the session to self-contained HTML even when the agent step
     # failed — a transcript is most valuable for diagnosing a failed run.
     - name: Export session transcript
       id: transcript-export
-      if: ${{ always() && inputs.agent == 'pi' && inputs.transcript-artifact != '' }}
+      if: ${{ always() && inputs.harness == 'pi' && inputs.transcript-artifact != '' }}
       shell: bash
       run: |
         # Portable newest-file selection (xargs -r is GNU-only and fails on

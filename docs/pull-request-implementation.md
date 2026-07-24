@@ -36,7 +36,7 @@ with no extra credentials.
 ## Three ways in
 
 **1. From the issue-triage agent.** Give the triage workflow's `GITHUB_TOKEN`
-`actions: write` and let the triage profile hand off issues that are fit and
+`actions: write` and let the triage agent hand off issues that are fit and
 ready:
 
 ```bash
@@ -95,7 +95,7 @@ the implementation job itself, because it pushes a branch and opens a PR — see
    App registration and a private key to protect.
 3. **Machine-account PAT** — everything the App token does, plus the bot
    becomes assignable/mentionable ([bot-account.md](bot-account.md)). Choose
-   it when you *also* want the assignment UX; the same implementation profile
+   it when you *also* want the assignment UX; the same implementation agent
    serves both `assigned-task-agent.yml` and this workflow.
 
 ## The safety envelope
@@ -129,7 +129,7 @@ generic Actions can express:
 
 [`assigned-task-agent.yml`](../examples/assigned-task-agent.yml) remains the
 right shape when your team wants the issue-sidebar UX and already operates a
-machine account — it is sugar over the same implementation profile. Teams
+machine account — it is sugar over the same implementation agent. Teams
 starting fresh should start dispatch-first and add assignment later if anyone
 misses it. The migration ladder is: workflow token (this page's default) →
 App token (automatic CI on agent PRs) → machine account (assignment UX) →

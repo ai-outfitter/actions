@@ -24,9 +24,9 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
-          profile: security-auditor
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: security-auditor
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           prompt: >-
             Commits ${{ github.event.before }}..${{ github.sha }} were pushed to
             ${{ github.repository }} touching infra/, auth/, or db/migrations/.

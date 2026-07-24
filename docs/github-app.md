@@ -70,9 +70,9 @@ jobs:
           github-token: ${{ steps.app-token.outputs.token }}
           git-user-name: myorg-outfitter[bot]
           git-user-email: myorg-outfitter[bot]@users.noreply.github.com
-          profile: task-agent
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: task-agent
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           prompt: "..."
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
