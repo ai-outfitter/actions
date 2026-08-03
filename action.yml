@@ -46,13 +46,6 @@ inputs:
       runners ship Chrome; most self-hosted and Forgejo runner images do not.
     required: false
     default: none
-  preview-url:
-    description: >-
-      Optional URL of the deployment or preview environment the agent should
-      inspect, exported as PREVIEW_URL on the agent step. Reference it from
-      the prompt (for example "open $PREVIEW_URL and verify the page loads").
-    required: false
-    default: ""
   github-token:
     description: >-
       Token exported as GH_TOKEN / GITHUB_TOKEN for the agent's `gh` and `git`
@@ -229,7 +222,6 @@ runs:
         OUTFITTER_PROMPT: ${{ inputs.prompt }}
         OUTFITTER_STRICT: ${{ inputs.strict }}
         TRANSCRIPT_ARTIFACT: ${{ inputs.transcript-artifact }}
-        PREVIEW_URL: ${{ inputs.preview-url }}
       run: |
         strict_flag=""
         [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"

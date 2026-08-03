@@ -26,9 +26,9 @@ jobs:
           profile-source: my-org/outfitter-catalog
           profile-source-ref: v1.2.0
           browser: chrome
-          preview-url: ${{ github.event.deployment_status.environment_url }}
-          # The preview URL is exported as PREVIEW_URL; keep untrusted PR text
-          # out of the prompt and let the agent fetch context with `gh`.
+          # The preview URL reaches the agent as ordinary step env; keep
+          # untrusted PR text out of the prompt and let the agent fetch
+          # context with `gh`.
           prompt: >-
             A preview environment for the current change is deployed at the
             URL in $PREVIEW_URL. Open it with your browser tools: verify the
@@ -38,4 +38,5 @@ jobs:
             `gh pr list --head`, then post your findings as one PR comment
             via `gh pr comment`.
         env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
