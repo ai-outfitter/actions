@@ -97,7 +97,6 @@ profile and Actions job for every situation. See
 | `profile-source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
 | `agent` | no | `pi` | Agent adapter: `pi` or `claude`. |
 | `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
-| `preview-url` | no | — | Deployment/preview URL exported as `PREVIEW_URL` on the agent step. |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
@@ -130,8 +129,10 @@ from the agent's `mcp:` frontmatter, e.g.
 A browser already on the runner is used as-is (GitHub-hosted Ubuntu images
 ship Chrome); otherwise the action installs Chromium with
 `npx playwright install --with-deps chromium`, which most self-hosted and
-Forgejo runner images need. Pass the page under review with `preview-url`,
-which the agent reads as `PREVIEW_URL`. One profile caveat: a
+Forgejo runner images need. Pass the page under review the same way as any
+other value: interpolate it into `prompt:`, or set `env: PREVIEW_URL:` on the
+step and tell the prompt to open `$PREVIEW_URL` — step env reaches the agent
+and its MCP servers with no action support. One profile caveat: a
 `state_persistence` policy that sets `mcp.json: error` blocks the injected
 server — leave it writable in browser profiles.
 
