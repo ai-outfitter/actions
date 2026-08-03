@@ -180,10 +180,18 @@ runs:
           # neutralizes the `0` sentinel (hermetic install), which would bury
           # the browser inside the ephemeral npx cache's
           # node_modules/playwright-core/.local-browsers.
+          # Only an absolute existing directory is honoured. A relative value
+          # — including the `0` sentinel — would resolve against the checkout,
+          # so a PR could commit a directory of that name and have the search
+          # below select a browser binary it controls.
           browsers_root="$HOME/.cache/ms-playwright"
-          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
-            browsers_root="$PLAYWRIGHT_BROWSERS_PATH"
-          fi
+          case "${PLAYWRIGHT_BROWSERS_PATH:-}" in
+            /*)
+              if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+                browsers_root="$PLAYWRIGHT_BROWSERS_PATH"
+              fi
+              ;;
+          esac
           # Pin the playwright version AND run npx from outside the workspace:
           # an unversioned `npx playwright` prefers a package resolved from
           # the current directory, so a PR under review could commit a

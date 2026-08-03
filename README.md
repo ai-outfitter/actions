@@ -149,6 +149,15 @@ The [Playwright MCP](https://github.com/microsoft/playwright-mcp) reads
 }
 ```
 
+**Pin the server version, and mind where `npx` resolves from.** The examples
+above say `@latest` for brevity; pin a version in a real catalog, because an
+unversioned `npx` both runs whatever upstream published today and prefers a
+package resolved from the current directory — which, for a reviewing agent, is
+the pull request's own checkout. A PR that commits `node_modules/.bin/chrome-devtools-mcp`
+would otherwise run with the agent step's environment, including model
+credentials. The action defends its own install step the same way (pinned
+version, run outside the workspace).
+
 **On `--no-sandbox`:** self-hosted and Forgejo runners commonly execute jobs
 as root inside a container, and Chrome refuses to launch its sandbox as root
 — without the flag the browser never starts. The tradeoff is real: disabling
