@@ -34,6 +34,25 @@ inputs:
     description: "Agent adapter to launch: pi or claude."
     required: false
     default: pi
+  browser:
+    description: >-
+      Browser to provide for the run: `none` or `chrome`. With `chrome`, the
+      action makes sure a Chromium binary exists on the runner and exports its
+      path as CHROME_PATH and PUPPETEER_EXECUTABLE_PATH, so a browser MCP
+      server declared by the profile (for example `chrome-devtools-mcp` or the
+      Playwright MCP) can start it. A browser already installed on the runner
+      is used as-is; otherwise the action installs Chromium with
+      `npx playwright install --with-deps chromium`. GitHub-hosted Ubuntu
+      runners ship Chrome; most self-hosted and Forgejo runner images do not.
+    required: false
+    default: none
+  preview-url:
+    description: >-
+      Optional URL of the deployment or preview environment the agent should
+      inspect, exported as PREVIEW_URL on the agent step. Reference it from
+      the prompt (for example "open $PREVIEW_URL and verify the page loads").
+    required: false
+    default: ""
   github-token:
     description: >-
       Token exported as GH_TOKEN / GITHUB_TOKEN for the agent's `gh` and `git`
@@ -137,6 +156,54 @@ runs:
           outfitter sync
         fi
 
+    - name: Provide browser
+      if: inputs.browser != '' && inputs.browser != 'none'
+      shell: bash
+      env:
+        BROWSER_INPUT: ${{ inputs.browser }}
+      run: |
+        if [ "$BROWSER_INPUT" != "chrome" ]; then
+          echo "browser: unsupported value '$BROWSER_INPUT' (expected 'none' or 'chrome')" >&2
+          exit 1
+        fi
+        if [ "$RUNNER_OS" != "Linux" ]; then
+          echo "browser: chrome provisioning supports Linux runners only (got $RUNNER_OS)" >&2
+          exit 1
+        fi
+        # Prefer a browser the runner already has — GitHub-hosted Ubuntu
+        # images ship Chrome, and downloading Chromium there wastes ~1 min.
+        chrome_bin=""
+        for candidate in google-chrome google-chrome-stable chromium chromium-browser; do
+          if command -v "$candidate" >/dev/null 2>&1; then
+            chrome_bin="$(command -v "$candidate")"
+            break
+          fi
+        done
+        if [ -z "$chrome_bin" ]; then
+          # --with-deps installs the shared libraries Chromium needs; it uses
+          # sudo only when not already root, which covers rootful container
+          # runners (the common Forgejo case) and sudo-capable VMs.
+          npx --yes playwright install --with-deps chromium
+          # PLAYWRIGHT_BROWSERS_PATH may hold the sentinel `0` (install into
+          # node_modules) or another non-directory value; only trust it when
+          # it is a real directory.
+          browsers_root="$HOME/.cache/ms-playwright"
+          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+            browsers_root="$PLAYWRIGHT_BROWSERS_PATH"
+          fi
+          chrome_bin="$(find "$browsers_root" \
+            -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)"
+        fi
+        if [ -z "$chrome_bin" ]; then
+          echo "browser: chrome was requested but no Chromium binary was found after install" >&2
+          exit 1
+        fi
+        echo "Using browser at $chrome_bin"
+        {
+          echo "CHROME_PATH=$chrome_bin"
+          echo "PUPPETEER_EXECUTABLE_PATH=$chrome_bin"
+        } >> "$GITHUB_ENV"
+
     - name: Configure git identity
       if: inputs.git-user-name != '' || inputs.git-user-email != ''
       shell: bash
@@ -162,6 +229,7 @@ runs:
         OUTFITTER_PROMPT: ${{ inputs.prompt }}
         OUTFITTER_STRICT: ${{ inputs.strict }}
         TRANSCRIPT_ARTIFACT: ${{ inputs.transcript-artifact }}
+        PREVIEW_URL: ${{ inputs.preview-url }}
       run: |
         strict_flag=""
         [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"

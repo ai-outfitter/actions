@@ -1,0 +1,41 @@
+# Review a pull request's deployed preview environment in a real browser.
+# Trigger this after your preview deployment completes and pass its URL in.
+# The profile must declare a browser MCP server (for example
+# `chrome-devtools-mcp`); `browser: chrome` makes sure a Chromium binary
+# exists on the runner and exports CHROME_PATH for that server to launch.
+# Auth: workflow GITHUB_TOKEN — the agent only comments on the PR.
+name: Preview environment review
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ai-outfitter/actions@v1
+        with:
+          profile: preview-reviewer
+          profile-source: my-org/outfitter-catalog
+          profile-source-ref: v1.2.0
+          browser: chrome
+          preview-url: ${{ github.event.deployment_status.environment_url }}
+          # The preview URL is exported as PREVIEW_URL; keep untrusted PR text
+          # out of the prompt and let the agent fetch context with `gh`.
+          prompt: >-
+            A preview environment for the current change is deployed at the
+            URL in $PREVIEW_URL. Open it with your browser tools: verify the
+            page loads without console errors, exercise the primary flow, and
+            take note of anything broken or visually wrong. Find the pull
+            request for ref ${{ github.event.deployment.ref }} with
+            `gh pr list --head`, then post your findings as one PR comment
+            via `gh pr comment`.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
