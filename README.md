@@ -52,6 +52,7 @@ More triggers in [`examples/`](examples/):
 - [`pull-request-implementation.yml`](examples/pull-request-implementation.yml) — start or continue an agent PR on `workflow_dispatch`; see [docs/pull-request-implementation.md](docs/pull-request-implementation.md)
 - [`issue-triage-dispatch.yml`](examples/issue-triage-dispatch.yml) — triage new issues and hand fit ones off to the implementation workflow
 - [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
+- [`preview-environment-review.yml`](examples/preview-environment-review.yml) — review a PR's deployed preview environment in a real browser
 
 ## Workflow-design skill
 
@@ -95,6 +96,8 @@ profile and Actions job for every situation. See
 | `profile-source` | no | — | Where the profile comes from: `owner/repo` shorthand, a git URI, or a path inside the checkout (e.g. `.outfitter/profiles`). |
 | `profile-source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
 | `agent` | no | `pi` | Agent adapter: `pi` or `claude`. |
+| `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
+| `preview-url` | no | — | Deployment/preview URL exported as `PREVIEW_URL` on the agent step. |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
@@ -103,6 +106,34 @@ profile and Actions job for every situation. See
 | `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
 Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+
+## Browser access
+
+Set `browser: chrome` to let the agent drive a real browser — for example to
+review a PR's deployed preview environment. The action does not start the
+browser itself; it makes sure a Chromium binary exists and exports its path
+(`CHROME_PATH`, `PUPPETEER_EXECUTABLE_PATH`), then the profile supplies the
+driver: declare a browser MCP server in the catalog's `mcp.json` and select it
+from the agent's `mcp:` frontmatter, e.g.
+
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest", "--headless"]
+    }
+  }
+}
+```
+
+A browser already on the runner is used as-is (GitHub-hosted Ubuntu images
+ship Chrome); otherwise the action installs Chromium with
+`npx playwright install --with-deps chromium`, which most self-hosted and
+Forgejo runner images need. Pass the page under review with `preview-url`,
+which the agent reads as `PREVIEW_URL`. One profile caveat: a
+`state_persistence` policy that sets `mcp.json: error` blocks the injected
+server — leave it writable in browser profiles.
 
 ## Session transcripts
 
