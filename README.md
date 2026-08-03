@@ -96,7 +96,7 @@ profile and Actions job for every situation. See
 | `profile-source` | no | — | Where the profile comes from: `owner/repo` shorthand, a git URI, or a path inside the checkout (e.g. `.outfitter/profiles`). |
 | `profile-source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
 | `agent` | no | `pi` | Agent adapter: `pi` or `claude`. |
-| `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
+| `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PLAYWRIGHT_MCP_EXECUTABLE_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
@@ -111,25 +111,57 @@ Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are pass
 Set `browser: chrome` to let the agent drive a real browser — for example to
 review a PR's deployed preview environment. The action does not start the
 browser itself; it makes sure a Chromium binary exists and exports its path
-(`CHROME_PATH`, `PUPPETEER_EXECUTABLE_PATH`), then the profile supplies the
-driver: declare a browser MCP server in the catalog's `mcp.json` and select it
-from the agent's `mcp:` frontmatter, e.g.
+(`CHROME_PATH`, `PLAYWRIGHT_MCP_EXECUTABLE_PATH`,
+`PUPPETEER_EXECUTABLE_PATH`), then the profile supplies the driver: declare a
+browser MCP server in the catalog's `mcp.json` and select it from the agent's
+`mcp:` frontmatter.
+
+Each server picks up the exported path differently.
+[`chrome-devtools-mcp`](https://github.com/ChromeDevTools/chrome-devtools-mcp)
+reads no environment variable for this — its documented option is
+`--executablePath` — so wrap it in a shell that expands `$CHROME_PATH`:
 
 ```json
 {
   "mcpServers": {
     "chrome-devtools": {
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest", "--headless"]
+      "command": "sh",
+      "args": [
+        "-c",
+        "exec npx -y chrome-devtools-mcp@latest --headless --executablePath \"$CHROME_PATH\" --chromeArg=--no-sandbox"
+      ]
     }
   }
 }
 ```
 
+The [Playwright MCP](https://github.com/microsoft/playwright-mcp) reads
+`PLAYWRIGHT_MCP_EXECUTABLE_PATH` directly, so no wrapper is needed:
+
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--headless", "--no-sandbox"]
+    }
+  }
+}
+```
+
+**On `--no-sandbox`:** self-hosted and Forgejo runners commonly execute jobs
+as root inside a container, and Chrome refuses to launch its sandbox as root
+— without the flag the browser never starts. The tradeoff is real: disabling
+the sandbox removes Chrome's process isolation, so a malicious page the agent
+visits is one renderer exploit away from the runner (and the job's tokens).
+Point the agent only at pages you deploy yourself, and drop the flag on
+runners where jobs run as a regular user (GitHub-hosted images do; the
+sandbox works there).
+
 A browser already on the runner is used as-is (GitHub-hosted Ubuntu images
-ship Chrome); otherwise the action installs Chromium with
-`npx playwright install --with-deps chromium`, which most self-hosted and
-Forgejo runner images need. Pass the page under review the same way as any
+ship Chrome); otherwise the action installs Chromium with a pinned Playwright
+release (`npx playwright@<version> install --with-deps chromium`), which most
+self-hosted and Forgejo runner images need. Pass the page under review the same way as any
 other value: interpolate it into `prompt:`, or set `env: PREVIEW_URL:` on the
 step and tell the prompt to open `$PREVIEW_URL` — step env reaches the agent
 and its MCP servers with no action support. One profile caveat: a

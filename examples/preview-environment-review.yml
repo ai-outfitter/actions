@@ -4,6 +4,11 @@
 # `chrome-devtools-mcp`); `browser: chrome` makes sure a Chromium binary
 # exists on the runner and exports CHROME_PATH for that server to launch.
 # Auth: workflow GITHUB_TOKEN — the agent only comments on the PR.
+#
+# Trigger caveat: a deployment status created with the workflow's own
+# GITHUB_TOKEN does not trigger `deployment_status` workflows (GitHub
+# suppresses recursive triggering). The deployment must come from a GitHub
+# App or PAT — platform integrations like Vercel and Netlify qualify.
 name: Preview environment review
 on:
   deployment_status:
@@ -14,7 +19,14 @@ permissions:
 
 jobs:
   review:
-    if: github.event.deployment_status.state == 'success'
+    # deployment_status fires for EVERY environment, including production,
+    # and some statuses carry no environment_url. Gate on a successful
+    # preview/staging deployment that actually exposes a URL.
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment_url != '' &&
+      (startsWith(github.event.deployment.environment, 'preview') ||
+       github.event.deployment.environment == 'staging')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,15 +40,17 @@ jobs:
           browser: chrome
           # The preview URL reaches the agent as ordinary step env; keep
           # untrusted PR text out of the prompt and let the agent fetch
-          # context with `gh`.
+          # context with `gh`. PR lookup: deployments reference a commit
+          # SHA, which `gh pr list --head` (branch names only) cannot map —
+          # the commit-to-PR API endpoint can.
           prompt: >-
             A preview environment for the current change is deployed at the
             URL in $PREVIEW_URL. Open it with your browser tools: verify the
             page loads without console errors, exercise the primary flow, and
             take note of anything broken or visually wrong. Find the pull
-            request for ref ${{ github.event.deployment.ref }} with
-            `gh pr list --head`, then post your findings as one PR comment
-            via `gh pr comment`.
+            request for commit ${{ github.event.deployment.sha }} with
+            `gh api repos/${{ github.repository }}/commits/${{ github.event.deployment.sha }}/pulls`,
+            then post your findings as one PR comment via `gh pr comment`.
         env:
           PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
