@@ -157,9 +157,19 @@ runs:
         fi
 
     - name: Provide browser
-      if: inputs.browser == 'chrome'
+      if: inputs.browser != '' && inputs.browser != 'none'
       shell: bash
+      env:
+        BROWSER_INPUT: ${{ inputs.browser }}
       run: |
+        if [ "$BROWSER_INPUT" != "chrome" ]; then
+          echo "browser: unsupported value '$BROWSER_INPUT' (expected 'none' or 'chrome')" >&2
+          exit 1
+        fi
+        if [ "$RUNNER_OS" != "Linux" ]; then
+          echo "browser: chrome provisioning supports Linux runners only (got $RUNNER_OS)" >&2
+          exit 1
+        fi
         # Prefer a browser the runner already has — GitHub-hosted Ubuntu
         # images ship Chrome, and downloading Chromium there wastes ~1 min.
         chrome_bin=""
@@ -174,7 +184,14 @@ runs:
           # sudo only when not already root, which covers rootful container
           # runners (the common Forgejo case) and sudo-capable VMs.
           npx --yes playwright install --with-deps chromium
-          chrome_bin="$(find "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}" \
+          # PLAYWRIGHT_BROWSERS_PATH may hold the sentinel `0` (install into
+          # node_modules) or another non-directory value; only trust it when
+          # it is a real directory.
+          browsers_root="$HOME/.cache/ms-playwright"
+          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+            browsers_root="$PLAYWRIGHT_BROWSERS_PATH"
+          fi
+          chrome_bin="$(find "$browsers_root" \
             -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)"
         fi
         if [ -z "$chrome_bin" ]; then
