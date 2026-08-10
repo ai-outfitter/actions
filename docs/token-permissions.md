@@ -96,6 +96,32 @@ A fine-grained PAT from your own account does work — pass it through the same 
 
 For organizations that want installation-scoped, auto-expiring tokens with a bot identity, a GitHub App (using `actions/create-github-app-token` to mint a token per run) is a stronger version of Strategy 2: tokens live ~1 hour, permissions are declared on the app, and installation is per-repo. The action consumes the minted token through the same `github-token` input. The machine-account PAT remains the simpler path if you don't want to operate an App — and the only path when the agent must be assignable. See [github-app.md](github-app.md) for setup and guardrails.
 
+## Private catalog sources in a workflow
+
+When `profile-source` names a private git repository, `outfitter sync` clones it using the runner's ambient git credentials. This is separate from the token passed to `actions/checkout`; authenticating the workflow checkout does not authenticate the catalog clone.
+
+Use these options in order:
+
+1. **Workflow token for a catalog in the same organization.** If the workflow token can read the catalog repository, configure git before running this action:
+
+   ```yaml
+   - name: Configure git for the private catalog
+     env:
+       TOKEN: ${{ secrets.GITHUB_TOKEN }}
+     run: git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+
+   - uses: ai-outfitter/actions@v1
+     with:
+       profile-source: your-org/profile-catalog
+       profile-source-ref: v1.2.3
+       # ...
+   ```
+
+2. **GitHub App installation token.** When several repositories are involved, mint a short-lived token with access to the catalog and configure the same git URL mapping with that token.
+3. **Read-only deploy key.** Add the key to the catalog repository, load its private key from an Actions secret, and use an explicit SSH URI such as `ssh://git@github.com/your-org/profile-catalog.git` for `profile-source`. A deploy key is a good option here because a CI job has no long-lived, broad token sitting next to it, unlike a resident agent.
+
+Set `profile-source-ref` for remote catalogs. An unpinned source runs whatever the catalog publishes next. See Outfitter's [forge credential model](https://github.com/ai-outfitter/outfitter/blob/main/docs/architecture/forge-credential-model.md) for the credential reasoning.
+
 ## Hardening checklist
 
 - [ ] `permissions:` block declared explicitly on every workflow using this action.
