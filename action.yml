@@ -208,14 +208,14 @@ runs:
             echo "  - $source_kind: $source"
           fi
         } > "$RUNNER_TEMP/outfitter-settings.yml"
-        mkdir -p "$HOME/.outfitter"
+        mkdir -p "$HOME/.agents"
         # Remove first rather than overwrite: a self-hosted or Forgejo runner
         # reuses HOME between jobs, so a leftover file — or a symlink pointing
         # somewhere else — would otherwise decide where this write lands and
         # silently change which catalog the run resolves against.
-        rm -f "$HOME/.outfitter/settings.yml"
-        cp "$RUNNER_TEMP/outfitter-settings.yml" "$HOME/.outfitter/settings.yml"
-        echo "--- settings.yml ---"; cat "$HOME/.outfitter/settings.yml"
+        rm -f "$HOME/.agents/settings.yml"
+        cp "$RUNNER_TEMP/outfitter-settings.yml" "$HOME/.agents/settings.yml"
+        echo "--- settings.yml ---"; cat "$HOME/.agents/settings.yml"
 
         echo "agent=$agent" >> "$GITHUB_OUTPUT"
 
