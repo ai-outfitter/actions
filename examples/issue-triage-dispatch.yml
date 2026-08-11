@@ -27,9 +27,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ai-outfitter/actions@v1
         with:
-          profile: issue-triage
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: issue-triage
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           # Pass the issue by number only; the agent fetches content with `gh`
           # so untrusted text never enters workflow code.
           prompt: >-

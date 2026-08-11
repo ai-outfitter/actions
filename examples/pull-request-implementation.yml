@@ -72,9 +72,9 @@ jobs:
         with:
           git-user-name: github-actions[bot]
           git-user-email: 41898282+github-actions[bot]@users.noreply.github.com
-          profile: task-agent
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: task-agent
+          source: my-org/agents-catalog
+          source-ref: v1.2.0
           # `task` below is free text, but dispatching requires write access, so it
           # carries collaborator-level trust. Issue/PR bodies stay untrusted: the
           # agent fetches them by number with `gh` and treats them as data.
