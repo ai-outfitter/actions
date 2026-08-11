@@ -32,9 +32,9 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
-          profile: reviewer
-          profile-source: my-org/outfitter-catalog
-          profile-source-ref: v1.2.0
+          agent: reviewer
+          source: my-org/outfitter-catalog
+          source-ref: v1.2.0
           prompt: >-
             Review pull request #${{ github.event.pull_request.number }} in
             ${{ github.repository }}. Use `gh pr diff` and `gh pr view` to read
@@ -62,7 +62,7 @@ catalog source:
 
 ```yaml
 # ~/.outfitter/settings.yml
-profile_sources:
+sources:
   - github: ai-outfitter/actions
     ref: v1
     path: .outfitter
@@ -92,10 +92,10 @@ profile and Actions job for every situation. See
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `prompt` | yes | — | Prompt passed to the agent in print mode (`pi -p "<prompt>"`). |
-| `profile` | yes | — | Outfitter profile id (`outfitter run --profile`). |
-| `profile-source` | no | — | Where the profile comes from: `owner/repo` shorthand, a git URI, or a path inside the checkout (e.g. `.outfitter/profiles`). |
-| `profile-source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
-| `agent` | no | `pi` | Agent adapter: `pi` or `claude`. |
+| `agent` | no | — | Agent slug to run. An `agent:<slug>` label on the triggering issue or PR wins over this; with neither, the catalog's `default_agent` applies. |
+| `source` | no | — | Catalog to resolve from: `owner/repo` shorthand, a git URI, or a path inside the checkout. Defaults to the repo's `.agents/`, then a payload at the repo root, then `<owner>/.agents`. |
+| `source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
+| `harness` | no | `pi` | Harness to launch: `pi`, `claude`, or `codex`. |
 | `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PLAYWRIGHT_MCP_EXECUTABLE_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
@@ -265,18 +265,18 @@ The short version:
 - The prompt, the diff under review, and issue/PR text are all **untrusted input** to the agent. Assume prompt injection: a PR under review can contain text that tries to redirect the agent. The token's scope — not the prompt — is your real control.
 - Avoid interpolating attacker-controlled text (PR titles, issue bodies) directly into `prompt:` via `${{ }}`. Reference the PR/issue by number and let the agent fetch content with `gh`, so the untrusted text stays data rather than becoming workflow-file code.
 - When the agent posts text derived from untrusted input (issue bodies, diffs) back through `gh`, its profile should require `--body-file` with a quoted heredoc, never inline `--body "..."` — backticks in a double-quoted body are executed by the shell, turning quoted issue text into command execution on the runner. (Observed live: a comment restating `` `outfitter sync` `` ran the command.)
-- Pin `profile-source-ref` for catalogs you don't own — profiles can inject extensions, CLI args, and environment variables into the agent launch ([trust and review](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/profile-repository.md#trust-and-review)).
+- Pin `source-ref` for catalogs you don't own — profiles can inject extensions, CLI args, and environment variables into the agent launch ([trust and review](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/profile-repository.md#trust-and-review)).
 - Don't run this action on `pull_request_target` with a write token against untrusted fork code.
 
 ## How it works
 
-Each run installs `@ai-outfitter/outfitter`, writes a minimal `~/.outfitter/settings.yml` on the runner (default profile/agent plus your `profile-source`), syncs remote catalogs, then executes:
+Each run installs `@ai-outfitter/outfitter`, writes a minimal `~/.outfitter/settings.yml` on the runner (the agent and harness plus the resolved `source`), syncs remote catalogs, then executes:
 
 ```bash
-outfitter run --profile <profile> --agent pi -- -p "<prompt>"
+outfitter run <agent> --harness pi -- -p "<prompt>"
 ```
 
-Outfitter composes the profile into agent configuration and launches `pi` in print mode; `pi` inherits `GH_TOKEN`, does its work with `gh`/`git`/the tools the profile grants, prints its result to the job log, and exits. The runner is discarded afterwards — nothing persists between runs except what the agent pushed through the token.
+Outfitter composes the agent's configuration and launches `pi` in print mode; `pi` inherits `GH_TOKEN`, does its work with `gh`/`git`/the tools the profile grants, prints its result to the job log, and exits. The runner is discarded afterwards — nothing persists between runs except what the agent pushed through the token.
 
 ## License
 
