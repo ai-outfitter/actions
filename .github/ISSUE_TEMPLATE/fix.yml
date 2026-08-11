@@ -3,7 +3,7 @@ description: >-
   A workflow step, an action input, or an example does not behave as
   documented. The triage agent will label it and comment with a suggested plan.
 title: "fix: "
-labels: ["bug"]
+labels: ["fix"]
 body:
   - type: dropdown
     id: area
