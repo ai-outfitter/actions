@@ -13,39 +13,46 @@ inputs:
       The prompt passed to the agent in print mode. The agent runs headless,
       does its work, prints its result, and exits.
     required: true
-  profile:
-    description: Outfitter profile id to run (passed as `outfitter run --profile`).
-    required: true
-  profile-source:
-    description: >-
-      Optional profile catalog to make the profile available. Accepts an
-      `owner/repo` GitHub shorthand, any git-cloneable URI, or a path inside
-      the checked-out repository (e.g. `.outfitter/profiles`).
-    required: false
-    default: ""
-  profile-source-ref:
-    description: >-
-      Optional tag, branch, or commit to pin a remote profile-source to.
-      Strongly recommended for catalogs you do not own — an unpinned source
-      runs whatever the catalog publishes next.
-    required: false
-    default: ""
   agent:
-    description: "Agent adapter to launch: pi or claude."
+    description: >-
+      Agent slug to run, resolved from the catalog. This is the fallback, not
+      an override: an `agent:<slug>` label on the triggering issue or pull
+      request selects the agent first, then this input, then the catalog's own
+      `default_agent`. A workflow that overrode the label could never be routed
+      by one, which is the point of labelling.
+    required: false
+    default: ""
+  source:
+    description: >-
+      Catalog to resolve the agent from. Accepts an `owner/repo` GitHub
+      shorthand, any git-cloneable URI, or a path inside the checked-out
+      repository. Optional: when omitted the action defaults to the
+      repository's own `.agents/`, then a Dotagents payload at the repository
+      root, then `<owner>/.agents` — so a repository that keeps its catalog in
+      the usual place passes no source at all.
+    required: false
+    default: ""
+  source-ref:
+    description: >-
+      Optional tag, branch, or commit to pin a remote source to. Strongly
+      recommended for catalogs you do not own — an unpinned source runs
+      whatever the catalog publishes next. Ignored for a path source.
+    required: false
+    default: ""
+  harness:
+    description: "Harness to launch the agent in: pi, claude, or codex."
     required: false
     default: pi
   browser:
     description: >-
       Browser to provide for the run: `none` or `chrome`. With `chrome`, the
       action makes sure a Chromium binary exists on the runner and exports its
-      path as CHROME_PATH, PLAYWRIGHT_MCP_EXECUTABLE_PATH, and
-      PUPPETEER_EXECUTABLE_PATH, so a browser MCP server declared by the
-      profile (for example `chrome-devtools-mcp` or the Playwright MCP) can
-      start it. A browser already installed on the runner is used as-is;
-      otherwise the action installs Chromium with a pinned Playwright release
-      (`npx playwright@<version> install --with-deps chromium`). GitHub-hosted
-      Ubuntu runners ship Chrome; most self-hosted and Forgejo runner images
-      do not.
+      path as CHROME_PATH and PUPPETEER_EXECUTABLE_PATH, so a browser MCP
+      server declared by the profile (for example `chrome-devtools-mcp` or the
+      Playwright MCP) can start it. A browser already installed on the runner
+      is used as-is; otherwise the action installs Chromium with
+      `npx playwright install --with-deps chromium`. GitHub-hosted Ubuntu
+      runners ship Chrome; most self-hosted and Forgejo runner images do not.
     required: false
     default: none
   github-token:
@@ -104,52 +111,120 @@ runs:
       shell: bash
       run: npm install -g "@ai-outfitter/outfitter@${{ inputs.outfitter-version }}"
 
-    - name: Configure Outfitter settings
+    - name: Resolve catalog source and agent
+      id: resolve
       shell: bash
       env:
-        OUTFITTER_PROFILE: ${{ inputs.profile }}
-        OUTFITTER_AGENT: ${{ inputs.agent }}
-        PROFILE_SOURCE: ${{ inputs.profile-source }}
-        PROFILE_SOURCE_REF: ${{ inputs.profile-source-ref }}
+        AGENT_INPUT: ${{ inputs.agent }}
+        SOURCE_INPUT: ${{ inputs.source }}
+        SOURCE_REF: ${{ inputs.source-ref }}
+        HARNESS: ${{ inputs.harness }}
       run: |
-        # Classify the profile source: a directory in the checkout -> path,
-        # a git URI -> uri, an owner/repo shorthand -> github.
-        source_kind=""
-        if [ -n "$PROFILE_SOURCE" ]; then
-          if [ -e "$PROFILE_SOURCE" ] || [ -e "$GITHUB_WORKSPACE/$PROFILE_SOURCE" ]; then
-            source_kind="path"
+        set -euo pipefail
+
+        # ── source ────────────────────────────────────────────────────────
+        # Default to where a catalog conventionally lives, so a repository
+        # that keeps one in the usual place passes no source at all:
+        #   1. an explicit input
+        #   2. the repository's own .agents/
+        #   3. a Dotagents payload at the repository root (catalog repos)
+        #   4. <owner>/.agents — the organization catalog
+        # The org catalog is a pointer as much as a container: its own
+        # settings.yml names the sources that carry most agents, and
+        # `outfitter sync` follows them.
+        source="$SOURCE_INPUT"
+        origin="input"
+        if [ -z "$source" ]; then
+          if [ -d "$GITHUB_WORKSPACE/.agents" ]; then
+            source="$GITHUB_WORKSPACE/.agents"; origin="repository .agents/"
+          elif [ -d "$GITHUB_WORKSPACE/agents" ] || [ -f "$GITHUB_WORKSPACE/settings.yml" ]; then
+            source="$GITHUB_WORKSPACE"; origin="payload at repository root"
           else
-            case "$PROFILE_SOURCE" in
-              *://*|git+*) source_kind="uri" ;;
-              */*) source_kind="github" ;;
-              *)
-                echo "profile-source '$PROFILE_SOURCE' is neither an existing path, a git URI, nor an owner/repo shorthand" >&2
-                exit 1
-                ;;
-            esac
+            source="$GITHUB_REPOSITORY_OWNER/.agents"; origin="organization catalog"
           fi
         fi
 
-        mkdir -p "$HOME/.outfitter"
-        {
-          echo "default_profile: $OUTFITTER_PROFILE"
-          echo "default_agent: $OUTFITTER_AGENT"
-          if [ -n "$source_kind" ]; then
-            echo "profile_sources:"
-            if [ "$source_kind" = "path" ] && [ ! -e "$PROFILE_SOURCE" ]; then
-              echo "  - $source_kind: $GITHUB_WORKSPACE/$PROFILE_SOURCE"
-            else
-              echo "  - $source_kind: $PROFILE_SOURCE"
-            fi
-            if [ "$source_kind" != "path" ] && [ -n "$PROFILE_SOURCE_REF" ]; then
-              echo "    ref: $PROFILE_SOURCE_REF"
-            fi
+        # Classify: a directory in the checkout -> path, a git URI -> uri,
+        # an owner/repo shorthand -> github.
+        if [ -e "$source" ] || [ -e "$GITHUB_WORKSPACE/$source" ]; then
+          source_kind="path"
+          [ -e "$source" ] || source="$GITHUB_WORKSPACE/$source"
+        else
+          case "$source" in
+            *://*|git+*) source_kind="uri" ;;
+            */*)         source_kind="github" ;;
+            *)
+              echo "source '$source' is neither an existing path, a git URI, nor an owner/repo shorthand" >&2
+              exit 1
+              ;;
+          esac
+        fi
+        echo "Catalog source: $source ($source_kind, from $origin)"
+
+        # ── agent ─────────────────────────────────────────────────────────
+        # An `agent:<slug>` label on the triggering issue or pull request
+        # selects the agent — the convention the catalog's own agents document
+        # for themselves. The input is the fallback for when no label routes,
+        # not an override: a workflow that hardcoded the agent could never be
+        # routed by label, which is the whole point of labelling one.
+        #
+        # Only accounts with triage permission or above can label, so this is
+        # not an avenue for an issue author to choose the agent. Labels are
+        # read from the event payload with jq and never interpolated into this
+        # script; the only thing done with the value is a slug-shape check.
+        agent=""
+        if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+          agent="$(jq -r '
+            [ (.issue.labels // .pull_request.labels // [])[]
+              | (.name // empty)
+              | select(startswith("agent:"))
+              | ltrimstr("agent:") ] | first // empty
+          ' "$GITHUB_EVENT_PATH")"
+          if [ -n "$agent" ]; then
+            case "$agent" in
+              *[!a-zA-Z0-9._-]*|"")
+                echo "ignoring agent label '$agent': not a valid agent slug" >&2
+                agent=""
+                ;;
+              *) echo "Agent from label: $agent" ;;
+            esac
           fi
-        } > "$HOME/.outfitter/settings.yml"
+        fi
+        if [ -z "$agent" ] && [ -n "$AGENT_INPUT" ]; then
+          agent="$AGENT_INPUT"
+          echo "Agent from input: $agent"
+        fi
+        # Empty is allowed: the catalog's own default_agent then applies, and
+        # `outfitter run` reports an actionable error when it has none.
+
+        {
+          echo "default_harness: $HARNESS"
+          [ -n "$agent" ] && echo "default_agent: $agent"
+          echo "sources:"
+          if [ "$source_kind" != "path" ] && [ -n "$SOURCE_REF" ]; then
+            echo "  - $source_kind: $source"
+            echo "    ref: $SOURCE_REF"
+          else
+            echo "  - $source_kind: $source"
+          fi
+        } > "$RUNNER_TEMP/outfitter-settings.yml"
+        mkdir -p "$HOME/.outfitter"
+        # Remove first rather than overwrite: a self-hosted or Forgejo runner
+        # reuses HOME between jobs, so a leftover file — or a symlink pointing
+        # somewhere else — would otherwise decide where this write lands and
+        # silently change which catalog the run resolves against.
+        rm -f "$HOME/.outfitter/settings.yml"
+        cp "$RUNNER_TEMP/outfitter-settings.yml" "$HOME/.outfitter/settings.yml"
+        echo "--- settings.yml ---"; cat "$HOME/.outfitter/settings.yml"
+
+        echo "agent=$agent" >> "$GITHUB_OUTPUT"
 
         if [ "$source_kind" = "uri" ] || [ "$source_kind" = "github" ]; then
           outfitter sync
         fi
+        # Fail here rather than inside the harness: an agent that cannot be
+        # resolved is a configuration error, and the list is the fix.
+        outfitter list agents
 
     - name: Provide browser
       if: inputs.browser != '' && inputs.browser != 'none'
@@ -175,38 +250,19 @@ runs:
           fi
         done
         if [ -z "$chrome_bin" ]; then
-          # Install into one fixed directory so the binary is findable
-          # afterwards. Overriding PLAYWRIGHT_BROWSERS_PATH here also
-          # neutralizes the `0` sentinel (hermetic install), which would bury
-          # the browser inside the ephemeral npx cache's
-          # node_modules/playwright-core/.local-browsers.
-          # Only an absolute existing directory is honoured. A relative value
-          # — including the `0` sentinel — would resolve against the checkout,
-          # so a PR could commit a directory of that name and have the search
-          # below select a browser binary it controls.
+          # --with-deps installs the shared libraries Chromium needs; it uses
+          # sudo only when not already root, which covers rootful container
+          # runners (the common Forgejo case) and sudo-capable VMs.
+          npx --yes playwright install --with-deps chromium
+          # PLAYWRIGHT_BROWSERS_PATH may hold the sentinel `0` (install into
+          # node_modules) or another non-directory value; only trust it when
+          # it is a real directory.
           browsers_root="$HOME/.cache/ms-playwright"
-          case "${PLAYWRIGHT_BROWSERS_PATH:-}" in
-            /*)
-              if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
-                browsers_root="$PLAYWRIGHT_BROWSERS_PATH"
-              fi
-              ;;
-          esac
-          # Pin the playwright version AND run npx from outside the workspace:
-          # an unversioned `npx playwright` prefers a package resolved from
-          # the current directory, so a PR under review could commit a
-          # malicious local "playwright" package that would execute here with
-          # this step's env (API keys, git credential). --with-deps installs
-          # the shared libraries Chromium needs; it uses sudo only when not
-          # already root, which covers rootful container runners (the common
-          # Forgejo case) and sudo-capable VMs.
-          (cd "$RUNNER_TEMP" && PLAYWRIGHT_BROWSERS_PATH="$browsers_root" \
-            npx --yes playwright@1.62.1 install --with-deps chromium)
-          # `|| true`: this step runs with -e -o pipefail; a find failure must
-          # not abort the step before the explicit diagnostic below runs.
+          if [ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" ] && [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+            browsers_root="$PLAYWRIGHT_BROWSERS_PATH"
+          fi
           chrome_bin="$(find "$browsers_root" \
-            -type f -name chrome -path '*chrome-linux*' 2>/dev/null \
-            | head -n1 || true)"
+            -type f -name chrome -path '*chrome-linux*' 2>/dev/null | head -n1)"
         fi
         if [ -z "$chrome_bin" ]; then
           echo "browser: chrome was requested but no Chromium binary was found after install" >&2
@@ -215,11 +271,6 @@ runs:
         echo "Using browser at $chrome_bin"
         {
           echo "CHROME_PATH=$chrome_bin"
-          # Playwright MCP reads PLAYWRIGHT_MCP_EXECUTABLE_PATH; Puppeteer
-          # reads PUPPETEER_EXECUTABLE_PATH; CHROME_PATH is for generic
-          # consumers. chrome-devtools-mcp reads no env var — pass
-          # --executablePath explicitly (see README, Browser access).
-          echo "PLAYWRIGHT_MCP_EXECUTABLE_PATH=$chrome_bin"
           echo "PUPPETEER_EXECUTABLE_PATH=$chrome_bin"
         } >> "$GITHUB_ENV"
 
@@ -243,8 +294,8 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        OUTFITTER_PROFILE: ${{ inputs.profile }}
-        OUTFITTER_AGENT: ${{ inputs.agent }}
+        OUTFITTER_AGENT: ${{ steps.resolve.outputs.agent }}
+        OUTFITTER_HARNESS: ${{ inputs.harness }}
         OUTFITTER_PROMPT: ${{ inputs.prompt }}
         OUTFITTER_STRICT: ${{ inputs.strict }}
         TRANSCRIPT_ARTIFACT: ${{ inputs.transcript-artifact }}
@@ -253,18 +304,24 @@ runs:
         [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"
         set -- -p "$OUTFITTER_PROMPT"
         # Pin the session to a known directory so the transcript steps can
-        # find and export it. pi-only: other agents don't take --session-dir.
-        if [ "$OUTFITTER_AGENT" = "pi" ] && [ -n "$TRANSCRIPT_ARTIFACT" ]; then
+        # find and export it. pi-only: the others take no --session-dir.
+        if [ "$OUTFITTER_HARNESS" = "pi" ] && [ -n "$TRANSCRIPT_ARTIFACT" ]; then
           mkdir -p "$RUNNER_TEMP/outfitter-sessions"
           set -- "$@" --session-dir "$RUNNER_TEMP/outfitter-sessions"
         fi
-        outfitter run --profile "$OUTFITTER_PROFILE" --agent "$OUTFITTER_AGENT" $strict_flag -- "$@"
+        # The agent slug is positional and the harness is --harness. The old
+        # `--profile`/`--agent` flags were removed when the CLI renamed
+        # profiles to agents (OFTR-002), and passing them made every run die
+        # with "Unknown agent '--profile'" before the harness ever started.
+        # An empty slug is intentional: the catalog's default_agent applies.
+        outfitter run ${OUTFITTER_AGENT:+"$OUTFITTER_AGENT"} \
+          --harness "$OUTFITTER_HARNESS" $strict_flag -- "$@"
 
     # Export the session to self-contained HTML even when the agent step
     # failed — a transcript is most valuable for diagnosing a failed run.
     - name: Export session transcript
       id: transcript-export
-      if: ${{ always() && inputs.agent == 'pi' && inputs.transcript-artifact != '' }}
+      if: ${{ always() && inputs.harness == 'pi' && inputs.transcript-artifact != '' }}
       shell: bash
       run: |
         # Portable newest-file selection (xargs -r is GNU-only and fails on
