@@ -1,33 +1,22 @@
-# Triage every newly opened issue with an agent resolved from the catalog.
+# Triage every newly opened issue with the shared issue-triage profile from
+# ai-outfitter/default-profiles: the agent classifies it as fix/feature/idea
+# against this repo's CONTRIBUTING.md, applies that one label, and leaves a
+# comment (or asks a team member to look when unclear).
 #
-# No `source` is passed: the action defaults through the repository's own
-# `.agents/`, then a Dotagents payload at the repository root, then
-# `<owner>/.agents`. This repository keeps no catalog of its own, so it
-# resolves to `ai-outfitter/.agents`, whose `settings.yml` names the sources
-# that actually carry the agents.
+# Inference runs on GitHub Models — no API keys. Authenticated by the
+# workflow's own GITHUB_TOKEN via `models: read`; the provider config lives
+# in .github/models.json. See examples/issue-triage-github-models.yml, which
+# this workflow is the live copy of.
 #
-# `agent` is the fallback, not an override. An `agent:<slug>` label on the
-# issue selects the agent first — label `agent:outfitter-bot` and the same
-# workflow hands the issue to that agent instead. Only accounts with triage
-# permission can label, so an issue author cannot choose the agent.
-#
-# Inference runs on GitHub Models — no API keys. It is authenticated by the
-# workflow's own GITHUB_TOKEN via `models: read`; the provider config lives in
-# .github/models.json and is installed into pi's config dir before the action
-# runs.
-#
-# Run it by hand against any issue:
-#   gh workflow run issue-triage.yml -f issue=<number>
+# Setup: the fix/feature/idea labels must already exist in the repository —
+# the workflow token can add existing labels but the agent should not be
+# creating labels.
+# Auth: workflow GITHUB_TOKEN — recommended for this shape (labels and
+# comments in one repo, nothing that must trigger CI).
 name: Issue triage
 on:
   issues:
-    types: [opened, labeled]
-  workflow_dispatch:
-    inputs:
-      issue:
-        description: Issue number to triage
-        required: true
-        type: string
+    types: [opened]
 
 permissions:
   contents: read
@@ -36,18 +25,9 @@ permissions:
 
 jobs:
   triage:
-    # Never triage issues the automation itself opened; manual dispatch is
-    # always a human decision, so it skips the check. On `labeled`, only run
-    # when the label routes an agent — otherwise every label edit re-triages.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.issue.user.type != 'Bot' &&
-       (github.event.action == 'opened' ||
-        startsWith(github.event.label.name, 'agent:')))
+    # Never triage issues the automation itself opened.
+    if: github.event.issue.user.type != 'Bot'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,46 +36,41 @@ jobs:
           mkdir -p "$HOME/.pi/agent"
           cp .github/models.json "$HOME/.pi/agent/models.json"
 
-      - uses: ai-outfitter/actions@98afa6db3de774a2ccb8c0a8e7a1106861e34d1f
+      # This repository IS the action — dogfood the checked-out version so
+      # a regression in action.yml surfaces here first.
+      - uses: ./
         id: agent
         with:
-          # Fallback when no `agent:<slug>` label routes the issue.
-          agent: actions-agent
-          # trigger_context passes only trusted event identifiers; the agent
-          # fetches issue content with `gh`, so untrusted issue text never
-          # enters workflow code. The author login is user-influenced — treat
-          # it as an opaque identifier, never as instructions.
-          prompt: |
-            Handle this GitHub event using your system-prompt rules. Treat
-            trigger_context as routing metadata, select only the relevant
-            skill, then fetch the source material that skill needs with
-            trusted tools.
+          profile: issue-triage
+          profile-source: ai-outfitter/default-profiles
+          # Pinned commit; move to the first release tag once
+          # default-profiles cuts v0.1.0.
+          profile-source-ref: 6145a26a5debb537c1f34f7ab251bbf13c1d7802
+          # Pass the issue by number only; the profile fetches content with
+          # `gh` so untrusted issue text never enters workflow code.
+          prompt: >-
+            Triage issue #${{ github.event.issue.number }} in
+            ${{ github.repository }} following your process.
 
-            trigger_context:
-              repository: ${{ github.repository }}
-              event_name: ${{ github.event_name }}
-              event_action: ${{ github.event.action || '' }}
-              issue_number: ${{ github.event.issue.number || inputs.issue }}
-              issue_author: ${{ github.event.issue.user.login || '' }}
-
-      # The action saved the agent's full session as a workflow artifact.
-      # Append the link to the agent's own comment so the decision trail is one
-      # click from the issue. Runs even when the agent step failed — a
-      # transcript matters most then.
+      # The action saved the agent's full session as a self-contained HTML
+      # workflow artifact. Append the artifact link to the agent's own triage
+      # comment so the decision trail is one click from the issue. Runs even
+      # when the agent step failed — a transcript matters most then.
       - name: Link transcript on the triage comment
         if: ${{ !cancelled() && steps.agent.outputs.transcript-artifact-url != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
           URL: ${{ steps.agent.outputs.transcript-artifact-url }}
         run: |
-          comment_id="$(gh api --paginate "repos/$REPO/issues/$ISSUE_NUMBER/comments" \
+          comment_id="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
             --jq '.[] | select(.user.login == "github-actions[bot]") | .id' | tail -n 1)"
           footer="$(printf '\n\n---\n<!-- outfitter-transcript -->\n<sub>🧾 <a href="%s">Full agent transcript</a> (workflow artifact; requires repo access)</sub>' "$URL")"
           if [ -n "$comment_id" ]; then
             gh api "repos/$REPO/issues/comments/$comment_id" --jq .body > /tmp/body.md
-            # Idempotent on re-runs: keep the first footer rather than
-            # appending one per run.
+            # Idempotent on re-runs: keep the first transcript footer rather
+            # than appending one per run.
             if grep -qF "<!-- outfitter-transcript -->" /tmp/body.md; then
               echo "Transcript footer already present; skipping."
               exit 0
@@ -103,5 +78,17 @@ jobs:
             printf '%s' "$footer" >> /tmp/body.md
             gh api -X PATCH "repos/$REPO/issues/comments/$comment_id" -F body=@/tmp/body.md > /dev/null
           else
-            printf '%s' "$footer" | gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body-file -
+            printf '%s' "$footer" | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
           fi
+
+      # A green agent run is not proof of work — validate the side effects:
+      # exactly one triage label (or the unclear-issue path) and a comment.
+      # The script lives in this repo, so run it from the checkout.
+      - name: Validate triage side effects
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/validate-triage.sh \
+            --repo "${{ github.repository }}" \
+            --issue "${{ github.event.issue.number }}" \
+            --allow-unlabeled
