@@ -1,0 +1,64 @@
+name: Something is broken
+description: >-
+  A workflow step, an action input, or an example does not behave as
+  documented. The triage agent will label it and comment with a suggested plan.
+title: "fix: "
+labels: ["fix"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it break?
+      options:
+        - Action inputs or outputs
+        - Profile resolution from the catalog source
+        - Harness launch (pi, Claude Code, Codex)
+        - Transcript artifact upload
+        - Credentials and token permissions
+        - An example workflow
+        - The outfitter-actions skill
+        - Documentation is wrong or out of date
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Action version
+      description: The ref you pinned.
+      placeholder: e.g. ai-outfitter/actions@v1, or a commit sha
+    validations:
+      required: true
+  - type: input
+    id: trigger
+    attributes:
+      label: Trigger
+      description: The workflow event that started the run.
+      placeholder: e.g. pull_request (ready_for_review), issues (opened), schedule
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow step
+      description: >-
+        The `uses:` block and its `with:` inputs. Redact tokens and private
+        source URLs — never paste a credential here.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happens instead?
+      description: >-
+        Include the failing step's log output verbatim, not a paraphrase. A
+        link to a public run is ideal.
+    validations:
+      required: true
