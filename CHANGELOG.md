@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/ai-outfitter/actions/compare/v1.2.0...v1.2.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* write settings to ~/.agents, the path the CLI reads ([#34](https://github.com/ai-outfitter/actions/issues/34)) ([81b5639](https://github.com/ai-outfitter/actions/commit/81b5639890a131f6c9c4a9608999006956d004e4))
+
 ## [1.2.0](https://github.com/ai-outfitter/actions/compare/v1.1.0...v1.2.0) (2026-08-11)
 
 
