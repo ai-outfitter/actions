@@ -15,10 +15,11 @@ inputs:
     required: true
   agent:
     description: >-
-      Agent slug to run, resolved from the catalog. Optional: when omitted the
-      action reads an `agent:<slug>` label off the triggering issue or pull
-      request, then falls back to the catalog's own `default_agent`. Naming an
-      agent here always wins over the label.
+      Agent slug to run, resolved from the catalog. This is the fallback, not
+      an override: an `agent:<slug>` label on the triggering issue or pull
+      request selects the agent first, then this input, then the catalog's own
+      `default_agent`. A workflow that overrode the label could never be routed
+      by one, which is the point of labelling.
     required: false
     default: ""
   source:
@@ -161,14 +162,18 @@ runs:
         echo "Catalog source: $source ($source_kind, from $origin)"
 
         # ── agent ─────────────────────────────────────────────────────────
-        # An explicit input wins. Otherwise take it from an `agent:<slug>`
-        # label on the triggering issue or pull request — the convention the
-        # catalog's own agents document for themselves. Labels are read from
-        # the event payload with jq, never interpolated into this script:
-        # a label is attacker-influenced on a public repository, and the only
-        # thing done with it is a slug-shape check.
-        agent="$AGENT_INPUT"
-        if [ -z "$agent" ] && [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+        # An `agent:<slug>` label on the triggering issue or pull request
+        # selects the agent — the convention the catalog's own agents document
+        # for themselves. The input is the fallback for when no label routes,
+        # not an override: a workflow that hardcoded the agent could never be
+        # routed by label, which is the whole point of labelling one.
+        #
+        # Only accounts with triage permission or above can label, so this is
+        # not an avenue for an issue author to choose the agent. Labels are
+        # read from the event payload with jq and never interpolated into this
+        # script; the only thing done with the value is a slug-shape check.
+        agent=""
+        if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
           agent="$(jq -r '
             [ (.issue.labels // .pull_request.labels // [])[]
               | (.name // empty)
@@ -181,9 +186,13 @@ runs:
                 echo "ignoring agent label '$agent': not a valid agent slug" >&2
                 agent=""
                 ;;
-              *) echo "Agent from issue label: $agent" ;;
+              *) echo "Agent from label: $agent" ;;
             esac
           fi
+        fi
+        if [ -z "$agent" ] && [ -n "$AGENT_INPUT" ]; then
+          agent="$AGENT_INPUT"
+          echo "Agent from input: $agent"
         fi
         # Empty is allowed: the catalog's own default_agent then applies, and
         # `outfitter run` reports an actionable error when it has none.
