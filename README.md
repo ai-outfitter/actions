@@ -51,7 +51,6 @@ More triggers in [`examples/`](examples/):
 - [`assigned-task-agent.yml`](examples/assigned-task-agent.yml) — complete work when an issue/PR is assigned to the bot account
 - [`pull-request-implementation.yml`](examples/pull-request-implementation.yml) — start or continue an agent PR on `workflow_dispatch`; see [docs/pull-request-implementation.md](docs/pull-request-implementation.md)
 - [`issue-triage-dispatch.yml`](examples/issue-triage-dispatch.yml) — triage new issues and hand fit ones off to the implementation workflow
-- [`issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) — triage new issues on GitHub Models, no API keys required
 - [`preview-environment-review.yml`](examples/preview-environment-review.yml) — review a PR's deployed preview environment in a real browser
 
 ## Workflow-design skill
@@ -104,7 +103,7 @@ profile and Actions job for every situation. See
 | `working-directory` | no | `.` | Directory the agent runs in. |
 | `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
-Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets. Alternatively, run on [GitHub Models](#using-github-models-no-api-keys) with no secrets at all.
+Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets.
 
 ## Browser access
 
@@ -189,8 +188,7 @@ agent step fails, which is when a transcript matters most.
 
 The artifact's download link is exposed as the `transcript-artifact-url`
 output, so a follow-up step can post it back to the issue or PR the agent
-worked on — see [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml),
-which appends it to the agent's own triage comment. Viewing the artifact
+worked on — see [`examples/issue-triage-dispatch.yml`](examples/issue-triage-dispatch.yml). Viewing the artifact
 requires being logged in to GitHub with access to the repository, so the link
 is safe to post on public issues; artifacts expire with the repository's
 retention setting (default 90 days).
@@ -199,56 +197,6 @@ Transcripts contain whatever the agent saw and did — issue text, file
 contents, command output. With the default workflow token that is content
 from the same repository, but review before enabling on jobs whose profile
 reads anything more sensitive than the repo the link is posted in.
-
-## Using GitHub Models (no API keys)
-
-The agent doesn't have to call a paid provider. [GitHub Models](https://docs.github.com/en/github-models) serves hosted models authenticated by the workflow's own `GITHUB_TOKEN`. No secrets to create, store, or rotate. Three parts:
-
-**1. Grant the permission.** Add `models: read` to the workflow's `permissions:` block. The same short-lived installation token that scopes the agent's `gh` calls then also authenticates inference; it's a read-only permission, so it adds nothing to the token's blast radius.
-
-```yaml
-permissions:
-  contents: read
-  issues: write
-  models: read
-```
-
-**2. Describe the provider to `pi`.** Commit a provider config (e.g. `.github/models.json`) pointing at the GitHub Models endpoint. The `$GITHUB_TOKEN` reference is resolved from the environment at runtime — this action exports `GITHUB_TOKEN` on the agent step, so no extra wiring is needed:
-
-```json
-{
-  "providers": {
-    "github-models": {
-      "baseUrl": "https://models.github.ai/inference",
-      "api": "openai-completions",
-      "apiKey": "$GITHUB_TOKEN",
-      "authHeader": true,
-      "models": [
-        { "id": "openai/gpt-4.1-mini", "name": "GPT-4.1 mini (GitHub Models)", "reasoning": false }
-      ]
-    }
-  }
-}
-```
-
-**3. Install it before the action step.** `pi` reads custom providers from `~/.pi/agent/models.json`:
-
-```yaml
-- name: Configure GitHub Models provider for pi
-  run: |
-    mkdir -p "$HOME/.pi/agent"
-    cp .github/models.json "$HOME/.pi/agent/models.json"
-```
-
-Then select the provider in the profile's `controls` (`provider: github-models`, `model: openai/gpt-4.1-mini`). See [`examples/issue-triage-github-models.yml`](examples/issue-triage-github-models.yml) for a complete workflow.
-
-**Choosing a model.** Three gotchas found by running this in anger:
-
-- Check the model id exists in the live catalog (`curl -s https://models.github.ai/catalog/models`) — the catalog is a subset of what GitHub Models markets, and a missing id fails at inference time with `404 unknown_model`, not at startup.
-- Some models are wire-incompatible with `pi`'s OpenAI adapter: DeepSeek V3 returns the nonstandard finish reason `tool_call` (singular) on tool calls, which aborts the run.
-- Small open-weight models may not hold an agentic loop at all: Llama 4 Maverick fabricated tool results in a single completion and exited green having done nothing. If the job must *act* (label, comment, push), verify the model actually drives the tools before trusting a green run.
-
-**Mind the limits.** GitHub Models' included tier has low per-day request caps and tight context/output token limits per request, and organizations can disable GitHub Models entirely. It fits event-driven, one-shot jobs — issue triage, small classifications — not high-volume review loops or long agentic sessions. For those, use a paid provider key.
 
 ## Scoping what the agent can do
 
