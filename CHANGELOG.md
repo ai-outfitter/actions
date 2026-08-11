@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.2.0](https://github.com/ai-outfitter/actions/compare/v1.1.0...v1.2.0) (2026-08-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* profile, profile-source and profile-source-ref are replaced by agent, source and source-ref, and agent now names an agent rather than a harness.
+
+### Features
+
+* triage issues with an agent resolved from the catalog ([#30](https://github.com/ai-outfitter/actions/issues/30)) ([20650bd](https://github.com/ai-outfitter/actions/commit/20650bd80d805338c252a1ea93a8d8c96e9e986e))
+
+
+### Bug Fixes
+
+* run agents through the current CLI contract, and default the catalog ([#27](https://github.com/ai-outfitter/actions/issues/27)) ([75ad9d3](https://github.com/ai-outfitter/actions/commit/75ad9d37b968a8af76e15fac4d708a01dd802066))
+
+
+### Documentation
+
+* **readme:** document the agent/source interface ([#31](https://github.com/ai-outfitter/actions/issues/31)) ([7002b18](https://github.com/ai-outfitter/actions/commit/7002b18689524da8e87cbd3e36d96df70b20c38b))
+
 ## [1.1.0](https://github.com/ai-outfitter/actions/compare/v1.0.0...v1.1.0) (2026-08-03)
 
 
