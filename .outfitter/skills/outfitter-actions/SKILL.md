@@ -76,7 +76,7 @@ When scaffolding a workflow, start from the closest template in `assets/` and
 adapt its triggers, labels, accounts, and agent source; do not write one
 from scratch:
 
-- Triage new issues: `assets/issue-triage-github-models.yml`
+- Triage new issues: `assets/issue-triage-dispatch.yml`
 - Implement an assigned issue or pull request: `assets/assigned-task-agent.yml`
 - Scheduled daily or weekly reports and reviews:
   `assets/scheduled-commit-review.yml`
