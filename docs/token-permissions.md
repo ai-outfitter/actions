@@ -51,9 +51,6 @@ Always set the `permissions:` block explicitly at the workflow or job level; don
 | PR review with comments                     | `contents: read`, `pull-requests: write`                                                                  |
 | Path audit posting a commit comment         | `contents: read` _(commit comments need `contents: write`; prefer opening an issue with `issues: write`)_ |
 | Agent that pushes a branch and opens a PR   | `contents: write`, `pull-requests: write`                                                                 |
-| Issue triage on GitHub Models (no API keys) | `contents: read`, `issues: write`, `models: read`                                                         |
-
-One permission deserves a note: `models: read` lets the same `GITHUB_TOKEN` authenticate inference against [GitHub Models](https://docs.github.com/en/github-models), making the token both the agent's acting credential and its model credential. It is read-only — it grants no new write surface — but it does mean a single `permissions:` block now describes everything the run can do _and_ what it thinks with. See the README's "Using GitHub Models (no API keys)" section.
 
 Known limitations of `GITHUB_TOKEN`:
 
