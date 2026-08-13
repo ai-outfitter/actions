@@ -119,8 +119,17 @@ runs:
         SOURCE_INPUT: ${{ inputs.source }}
         SOURCE_REF: ${{ inputs.source-ref }}
         HARNESS: ${{ inputs.harness }}
+        OUTFITTER_STRICT: ${{ inputs.strict }}
       run: |
         set -euo pipefail
+
+        strict_flag=""
+        [ "$OUTFITTER_STRICT" = "true" ] && strict_flag="--strict"
+        preflight_strict=""
+        # Preflight --strict exists from outfitter 1.7.0; older pinned CLIs skip it rather than die on an unknown flag.
+        if [ -n "$strict_flag" ] && outfitter sync --help 2>/dev/null | grep -q -- '--strict'; then
+          preflight_strict="$strict_flag"
+        fi
 
         # ── source ────────────────────────────────────────────────────────
         # Default to where a catalog conventionally lives, so a repository
@@ -220,11 +229,11 @@ runs:
         echo "agent=$agent" >> "$GITHUB_OUTPUT"
 
         if [ "$source_kind" = "uri" ] || [ "$source_kind" = "github" ]; then
-          outfitter sync
+          outfitter sync $preflight_strict
         fi
         # Fail here rather than inside the harness: an agent that cannot be
         # resolved is a configuration error, and the list is the fix.
-        outfitter list agents
+        outfitter list agents $preflight_strict
 
     - name: Provide browser
       if: inputs.browser != '' && inputs.browser != 'none'
