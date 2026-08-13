@@ -99,7 +99,7 @@ profile and Actions job for every situation. See
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
-| `strict` | no | `false` | Fail when profile controls can't be translated by the adapter. |
+| `strict` | no | `true` | Fail the run and resolution preflights on warnings, including ambiguous source resolution and untranslatable profile controls. Strict is the default because CI warnings go unread. Strict preflights need `@ai-outfitter/outfitter` >= 1.7.0; older pinned versions skip them (`run --strict` still applies). Set `false` only temporarily for catalog/CLI capability skew or a deliberate short-lived divergence, with an expiry comment. |
 | `working-directory` | no | `.` | Directory the agent runs in. |
 | `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
