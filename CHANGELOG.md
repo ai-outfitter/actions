@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/ai-outfitter/actions/compare/v1.2.1...v1.3.0) (2026-08-13)
+
+
+### Features
+
+* **run:** default strict to true ([#39](https://github.com/ai-outfitter/actions/issues/39)) ([70bdbd0](https://github.com/ai-outfitter/actions/commit/70bdbd0585f05ee0e8f352eaf69bfff08b5a61db))
+
+
+### Bug Fixes
+
+* **run:** apply strict to the sync and list preflights ([#38](https://github.com/ai-outfitter/actions/issues/38)) ([e5d12ce](https://github.com/ai-outfitter/actions/commit/e5d12cea1554d4c05c0b205f27dcc9365399448e))
+* track the action's v1 tag instead of a commit ([#36](https://github.com/ai-outfitter/actions/issues/36)) ([f0956ae](https://github.com/ai-outfitter/actions/commit/f0956ae9d52b35c14c8592383c9ca847d111a87f))
+
 ## [1.2.1](https://github.com/ai-outfitter/actions/compare/v1.2.0...v1.2.1) (2026-08-11)
 
 
