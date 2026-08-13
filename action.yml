@@ -77,9 +77,16 @@ inputs:
     required: false
     default: latest
   strict:
-    description: Fail instead of warning when profile controls cannot be translated by the adapter.
+    description: >-
+      Fail the run and its resolution preflights on warnings, including
+      ambiguous source resolution and untranslatable profile controls. This
+      is the default because CI warnings go unread. Strict preflights need
+      `@ai-outfitter/outfitter` >= 1.7.0; older pinned versions skip them
+      (`run --strict` still applies). Set `strict: false` only as a temporary
+      escape hatch for catalog/CLI capability skew or a deliberate short-lived
+      divergence, and include an expiry comment.
     required: false
-    default: "false"
+    default: "true"
   working-directory:
     description: Directory the agent runs in.
     required: false
