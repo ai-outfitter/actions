@@ -1,18 +1,30 @@
 # Inference pricing and rate limits for CI agent runs
 
-Research notes for choosing and budgeting the model behind an Outfitter CI
-agent (issue triage, PR review). Figures collected **July 2026**; GitHub
-marks all of these "subject to change without notice" — treat this file as a
-snapshot with sources, not a contract.
+This document is a **July 2026 evidence snapshot** for choosing and budgeting
+the model behind an Outfitter continuous integration (CI) agent. It covers
+issue triage and pull request review. GitHub marks the figures as subject to
+change without notice. Treat them as dated evidence, not as a current price
+contract.
+
+Use Outfitter's [cross-runtime cost guide](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/cost-estimation.md)
+for the canonical equation and workload profile. This snapshot supplies the
+GitHub Actions model and runner inputs. It does not define a separate model-cost
+calculation.
 
 ## The two cost regimes
 
-**1. GitHub Models included tier — $0 per run.** With `models: read` on the
-workflow `GITHUB_TOKEN`, inference is free. You don't pay in dollars; you pay
-in **rate limits**, and for agentic workloads the limits are the binding
-constraint (see below). GitHub Actions minutes are free on public repos;
-private repos pay standard runner rates (~$0.008/min Linux — a triage run is
-~1 minute).
+**1. GitHub Models included tier — no model charge inside the quota.** With
+`models: read` on the workflow `GITHUB_TOKEN`, eligible use inside the included
+quota has no separate model charge. The request and token use is still usage.
+Do not record it as zero tokens. Rate limits are the binding constraint for the
+agent workloads in this snapshot.
+
+GitHub Actions minutes were included for public repositories in July 2026.
+Private repositories used included account minutes first and then used the
+hosted-runner price table. The July 2026 table listed the standard Linux runner
+at approximately $0.008 per minute. Use the exact operating system and runner
+size from the [Actions runner price table](https://docs.github.com/en/billing/reference/actions-minute-multipliers)
+that is effective on the estimate date.
 
 **2. GitHub Models paid usage / your own provider key.** Per-token billing,
 either through GitHub Models' paid opt-in or directly against the provider
@@ -110,6 +122,64 @@ Even fully paid, a triage-class agent is cents; the reason to stay on the
 included tier is key management, not money. The calculus flips for PR-review
 agents reading large diffs (10× the input tokens) or high-volume repos that
 blow through the daily request caps.
+
+## Actions substrate inputs
+
+Calculate the model line once from the shared workload profile. Then add these
+Actions inputs:
+
+| Input | Hosted runner | Self-hosted runner |
+| --- | --- | --- |
+| Run duration | Billable job minutes for every attempt | Active job minutes for capacity allocation |
+| Runner price | Price for the operating system and runner size on the estimate date | Organization allocation per minute or per month |
+| Included quota | Account minutes and eligible public-repository use | Any internal capacity already funded |
+| Fixed substrate | None for an otherwise idle GitHub-hosted workload | Runner compute, storage, management, and idle capacity allocated to this workload |
+| Variable compute | Billable minutes after the included quota | Per-run allocation when the organization charges active use separately |
+| Storage | Artifact and log retention outside included amounts | Artifact store, logs, caches, and runner disks |
+| Network | Billed transfer and dependent services | Runner egress and dependent services |
+
+Use this form for a GitHub-hosted runner:
+
+```text
+Actions monthly cost =
+  model and tool cost for all attempts
+  + max(0, billable minutes - included minutes) × runner price
+  + storage
+  + network
+```
+
+Use this form for a self-hosted runner:
+
+```text
+self-hosted Actions monthly cost =
+  allocated fixed runner cost
+  + model and tool cost for all attempts
+  + variable runner cost for all attempts
+  + storage
+  + network
+```
+
+Do not set the self-hosted runner line to zero only because GitHub does not bill
+hosted minutes. Use the organization's allocation method. If no allocation is
+available, label the runner cost unknown.
+
+The shared daily-report example has the same model line on Actions and Agent
+Operator. An Actions estimate adds runner minutes for each initial run, retry,
+and separate delegated job. A resident estimate instead adds its allocated
+compute for 730 hours.
+
+## Attempts and unavailable usage
+
+A workflow retry is a new attempt. A delegated workflow is a child run. Count
+each attempt once. Do not copy a child's model exchanges into both the parent
+and child totals.
+
+The included Models tier can make the provider charge zero while token use is
+non-zero. Keep those two facts separate. If the workflow does not retain usage,
+record the model amount as unknown. Do not render it as `$0`.
+
+Keep provider-reported cost separate from a price-book estimate. A price-book
+estimate must name its source and effective date.
 
 ## Sources
 
