@@ -32,6 +32,7 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
+          # A provider key comes through env below, not the Outfitter gateway.
           agent: reviewer
           source: my-org/outfitter-catalog
           source-ref: v1.2.0
@@ -96,6 +97,8 @@ profile and Actions job for every situation. See
 | `source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
 | `harness` | no | `pi` | Harness to launch: `pi`, `claude`, or `codex`. |
 | `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PLAYWRIGHT_MCP_EXECUTABLE_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
+| `inference` | no | `outfitter` | `outfitter` routes the agent's `outfitter` provider through the Outfitter inference gateway with the job's OIDC identity (needs `permissions: id-token: write`); `none` leaves provider credentials to `env:`. See [Inference through the Outfitter gateway](#inference-through-the-outfitter-gateway). |
+| `inference-gateway` | when `inference: outfitter` | — | The Outfitter deployment's workspace gateway URL. |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
@@ -103,7 +106,60 @@ profile and Actions job for every situation. See
 | `working-directory` | no | `.` | Directory the agent runs in. |
 | `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
-Model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets.
+Without an `inference-gateway`, model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets.
+
+## Inference through the Outfitter gateway
+
+With `inference: outfitter` (the default), the agent needs no provider
+secrets. The action starts a small relay on `127.0.0.1:4141` before the agent
+runs. The relay mints the job's GitHub Actions OIDC ID token (audience
+`outfitter-inference`) and forwards chat completions to your Outfitter
+deployment's inference gateway with that token as the bearer. The gateway
+verifies the token and attributes usage to the Outfitter organization
+connected to the repository's GitHub owner.
+
+Grant the job `id-token: write` and name the gateway:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write # lets the action mint the job's OIDC token for the gateway
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ai-outfitter/actions@v1
+        with:
+          agent: reviewer
+          inference-gateway: https://workspaces.example.com
+          prompt: >-
+            Review pull request #${{ github.event.pull_request.number }}.
+```
+
+Then point the catalog's `models.json` at the relay with an `outfitter`
+provider, and select its models from the agent (`model: outfitter/<model>`):
+
+```json
+{
+  "providers": {
+    "outfitter": {
+      "baseUrl": "http://127.0.0.1:4141/v1",
+      "api": "openai-completions",
+      "apiKey": "$OUTFITTER_INFERENCE_TOKEN",
+      "models": [{ "id": "GLM-5.3-Flash-EXL3" }]
+    }
+  }
+}
+```
+
+`OUTFITTER_INFERENCE_TOKEN` is the placeholder `relay`; the real token never
+leaves the relay process. The action also exports
+`OUTFITTER_INFERENCE_BASE_URL`. Omit `inference-gateway` to keep using provider
+keys through `env:`. See [docs/inference-gateway.md](docs/inference-gateway.md)
+for how the relay works and how to troubleshoot it.
 
 ## Browser access
 

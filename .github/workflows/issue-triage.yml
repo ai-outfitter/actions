@@ -55,6 +55,7 @@ jobs:
       - uses: ai-outfitter/actions@v1
         id: agent
         with:
+          # A provider key comes through env below, not the Outfitter gateway.
           # Fallback when no `agent:<slug>` label routes the issue.
           agent: actions-agent
           # trigger_context passes only trusted event identifiers; the agent

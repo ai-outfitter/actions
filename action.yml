@@ -55,6 +55,26 @@ inputs:
       runners ship Chrome; most self-hosted and Forgejo runner images do not.
     required: false
     default: none
+  inference:
+    description: >-
+      Inference route for the run: `outfitter` or `none`. With `outfitter`,
+      the agent's `outfitter` provider is routed through the Outfitter
+      inference gateway using the job's GitHub Actions OIDC identity, so no
+      provider secret is needed. Requires `permissions: id-token: write` on
+      the job and a catalog `models.json` provider `outfitter` with
+      `baseUrl: http://127.0.0.1:4141/v1` and
+      `apiKey: "$OUTFITTER_INFERENCE_TOKEN"`. Without an `inference-gateway`
+      the relay is skipped and the agent uses the provider credentials in its
+      `env:`, as before. Set `none` to skip it unconditionally.
+    required: false
+    default: outfitter
+  inference-gateway:
+    description: >-
+      URL of the Outfitter deployment's workspace inference gateway, for
+      example `https://workspaces.example.com`. Empty, the default, means the
+      job supplies provider credentials itself through `env:`.
+    required: false
+    default: ""
   github-token:
     description: >-
       Token exported as GH_TOKEN / GITHUB_TOKEN for the agent's `gh` and `git`
@@ -304,6 +324,65 @@ runs:
           git config --global user.email "$GIT_EMAIL"
         fi
 
+    # The relay holds the job's OIDC ID token and presents it to the gateway;
+    # the agent only ever sees the placeholder key `relay` on loopback.
+    - name: Start inference relay
+      if: inputs.inference != 'none'
+      shell: bash
+      env:
+        INFERENCE_INPUT: ${{ inputs.inference }}
+        INFERENCE_GATEWAY: ${{ inputs.inference-gateway }}
+      run: |
+        if [ "$INFERENCE_INPUT" != "outfitter" ]; then
+          echo "::error::inference: unsupported value '$INFERENCE_INPUT' (expected 'outfitter' or 'none')"
+          exit 1
+        fi
+        # No gateway configured: the workflow is passing provider credentials
+        # through env, as every workflow did before this input existed.
+        if [ -z "$INFERENCE_GATEWAY" ]; then
+          echo "::notice::inference: no 'inference-gateway' set; the agent uses the provider credentials in its environment."
+          exit 0
+        fi
+        if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+          echo "::error::inference: 'outfitter' authenticates with the job's OIDC identity, but this job cannot request an ID token. Add 'permissions: id-token: write' to the workflow or job, or set 'inference: none'."
+          exit 1
+        fi
+        port=4141
+        log="$RUNNER_TEMP/inference-relay.log"
+        # Redirect output: a background process that keeps the step's stdout
+        # open would hold the step until it exits.
+        INFERENCE_GATEWAY_URL="$INFERENCE_GATEWAY" \
+        ACTIONS_ID_TOKEN_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL" \
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+        PORT="$port" \
+          nohup node "$GITHUB_ACTION_PATH/scripts/inference-relay.mjs" > "$log" 2>&1 &
+        pid=$!
+        # node rather than curl: self-hosted and Forgejo runner images may
+        # lack curl, and node is present since Outfitter was just installed.
+        ready=false
+        for _ in $(seq 1 20); do
+          if ! kill -0 "$pid" 2>/dev/null; then
+            break
+          fi
+          if node -e "fetch('http://127.0.0.1:$port/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
+            ready=true
+            break
+          fi
+          sleep 0.5
+        done
+        if [ "$ready" != "true" ]; then
+          echo "::error::inference: the relay did not become healthy on 127.0.0.1:$port within 10 s"
+          cat "$log" >&2
+          kill "$pid" 2>/dev/null || true
+          exit 1
+        fi
+        cat "$log"
+        {
+          echo "OUTFITTER_INFERENCE_TOKEN=relay"
+          echo "OUTFITTER_INFERENCE_BASE_URL=http://127.0.0.1:$port/v1"
+          echo "INFERENCE_RELAY_PID=$pid"
+        } >> "$GITHUB_ENV"
+
     - name: Run agent
       shell: bash
       working-directory: ${{ inputs.working-directory }}
@@ -330,6 +409,10 @@ runs:
         # profiles to agents (OFTR-002), and passing them made every run die
         # with "Unknown agent '--profile'" before the harness ever started.
         # An empty slug is intentional: the catalog's default_agent applies.
+        # The relay already holds the job's OIDC identity. Nothing the agent
+        # runs may mint its own ID tokens, for this audience or any other the
+        # organization trusts, so the request variables are withheld from it.
+        env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN \
         outfitter run ${OUTFITTER_AGENT:+"$OUTFITTER_AGENT"} \
           --harness "$OUTFITTER_HARNESS" $strict_flag -- "$@"
 
@@ -374,3 +457,11 @@ runs:
         name: ${{ inputs.transcript-artifact }}
         path: ${{ runner.temp }}/outfitter-transcript/
         if-no-files-found: ignore
+
+    - name: Stop inference relay
+      if: always()
+      shell: bash
+      run: |
+        if [ -n "${INFERENCE_RELAY_PID:-}" ]; then
+          kill "$INFERENCE_RELAY_PID" 2>/dev/null || true
+        fi
