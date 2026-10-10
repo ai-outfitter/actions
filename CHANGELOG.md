@@ -7,6 +7,13 @@
 
 * **run:** route inference through the Outfitter gateway with the job's OIDC identity: new `inference` (default `outfitter`) and `inference-gateway` inputs start a loopback relay, so agents need no provider secrets. Workflows that pass provider keys through `env:` set `inference: none`.
 
+## [1.4.0](https://github.com/ai-outfitter/actions/compare/v1.3.0...v1.4.0) (2026-10-10)
+
+
+### Features
+
+* **run:** route inference through the Outfitter gateway with the job's OIDC identity ([#45](https://github.com/ai-outfitter/actions/issues/45)) ([0bdb372](https://github.com/ai-outfitter/actions/commit/0bdb372fe00f42ad2d08ec0445e34620fa6e61bf))
+
 ## [1.3.0](https://github.com/ai-outfitter/actions/compare/v1.2.1...v1.3.0) (2026-08-13)
 
 
