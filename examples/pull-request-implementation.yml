@@ -70,6 +70,7 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
+          # A provider key comes through env below, not the Outfitter gateway.
           git-user-name: github-actions[bot]
           git-user-email: 41898282+github-actions[bot]@users.noreply.github.com
           agent: task-agent

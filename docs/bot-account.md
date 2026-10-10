@@ -34,6 +34,7 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
+          # A provider key comes through env below, not the Outfitter gateway.
           github-token: ${{ secrets.OUTFITTER_BOT_TOKEN }}
           git-user-name: myorg-outfitter-bot
           git-user-email: outfitter-bot@myorg.com

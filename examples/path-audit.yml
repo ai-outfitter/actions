@@ -24,6 +24,7 @@ jobs:
           fetch-depth: 0
       - uses: ai-outfitter/actions@v1
         with:
+          # A provider key comes through env below, not the Outfitter gateway.
           agent: security-auditor
           source: my-org/agents-catalog
           source-ref: v1.2.0
