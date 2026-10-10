@@ -409,6 +409,10 @@ runs:
         # profiles to agents (OFTR-002), and passing them made every run die
         # with "Unknown agent '--profile'" before the harness ever started.
         # An empty slug is intentional: the catalog's default_agent applies.
+        # The relay already holds the job's OIDC identity. Nothing the agent
+        # runs may mint its own ID tokens, for this audience or any other the
+        # organization trusts, so the request variables are withheld from it.
+        env -u ACTIONS_ID_TOKEN_REQUEST_URL -u ACTIONS_ID_TOKEN_REQUEST_TOKEN \
         outfitter run ${OUTFITTER_AGENT:+"$OUTFITTER_AGENT"} \
           --harness "$OUTFITTER_HARNESS" $strict_flag -- "$@"
 

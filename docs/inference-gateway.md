@@ -55,10 +55,11 @@ For each `POST /v1/chat/completions` the relay:
    upstream request is cancelled.
 
 Any other path answers 404. The relay listens on loopback only and never logs
-tokens. The ID token is held in the relay's memory and never enters the
-environment the agent and its tools see, so a prompt-injected agent cannot
-print or exfiltrate it. It can still spend inference through the relay for the
-length of the job, as it could with a provider key.
+tokens. The ID token is held in the relay's memory, and the agent step runs
+with `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`
+withheld, so a prompt-injected agent can neither read the token nor mint one of
+its own for this or any other audience. It can still spend inference through
+the relay for the length of the job, as it could with a provider key.
 
 The final "Stop inference relay" step runs even when the agent fails, and
 stops the relay.

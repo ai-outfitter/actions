@@ -1,8 +1,9 @@
 // The inference relay: the agent calls it on loopback with a placeholder API
 // key, and it forwards chat completions to the Outfitter inference gateway
 // with the job's GitHub Actions OIDC ID token as the bearer. The token is
-// minted from the runner's ID-token endpoint, held in this process only, and
-// never written to the environment the agent sees.
+// minted from the runner's ID-token endpoint and held in this process; the
+// agent step runs without the ID-token request variables, so the agent cannot
+// mint one itself.
 //
 // Node 20+, no dependencies. Started in the background by action.yml.
 
@@ -11,6 +12,12 @@ import { Readable } from "node:stream";
 
 const gatewayUrl = process.env.INFERENCE_GATEWAY_URL?.replace(/\/+$/, "");
 if (!gatewayUrl) throw new Error("INFERENCE_GATEWAY_URL must be configured");
+// The bearer is the job's identity: it travels only over TLS, or loopback in tests.
+{
+  const { protocol, hostname } = new URL(gatewayUrl);
+  if (protocol !== "https:" && !(protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(hostname)))
+    throw new Error("INFERENCE_GATEWAY_URL must be https (http only on loopback)");
+}
 const target = `${gatewayUrl}/inference/v1/chat/completions`;
 const audience = process.env.INFERENCE_TOKEN_AUDIENCE || "outfitter-inference";
 // Refresh this long before the token expires so a request in flight never
@@ -25,10 +32,11 @@ const json = (res, status, value) =>
 function expiresAt(jwt) {
   try {
     const { exp } = JSON.parse(Buffer.from(jwt.split(".")[1], "base64url").toString("utf8"));
-    return typeof exp === "number" ? exp * 1000 : 0;
-  } catch {
-    return 0;
-  }
+    if (typeof exp === "number") return exp * 1000;
+  } catch {}
+  // Unreadable: mint on every request rather than trust a token of unknown life.
+  console.warn("inference-relay: ID token carries no readable exp; minting per request");
+  return 0;
 }
 
 async function mint() {
@@ -92,6 +100,11 @@ async function relay(req, res) {
     if (!res.headersSent && !abort.signal.aborted)
       json(res, 502, { error: "Inference gateway unavailable" });
     return;
+  }
+  // The gateway never redirects; a 3xx here is a proxy or misconfigured URL.
+  if (upstream.status >= 300 && upstream.status < 400) {
+    await upstream.body?.cancel();
+    return json(res, 502, { error: "Inference gateway redirect rejected" });
   }
   res.writeHead(upstream.status, {
     "Content-Type": upstream.headers.get("content-type") || "application/json",
