@@ -63,16 +63,20 @@ inputs:
       provider secret is needed. Requires `permissions: id-token: write` on
       the job and a catalog `models.json` provider `outfitter` with
       `baseUrl: http://127.0.0.1:4141/v1` and
-      `apiKey: "$OUTFITTER_INFERENCE_TOKEN"`. Without an `inference-gateway`
-      the relay is skipped and the agent uses the provider credentials in its
-      `env:`, as before. Set `none` to skip it unconditionally.
+      `apiKey: "$OUTFITTER_INFERENCE_TOKEN"`. Without an `inference-gateway`,
+      provider credentials in the step's `env:` (`OPENAI_API_KEY`,
+      `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `SPARK_API_KEY`,
+      `SPARK_AUTHORIZATION`, `SPARK_ACCESS_CLIENT_ID` or any `*_API_KEY`) are
+      used as before and the relay is skipped; with none, the run goes through
+      Outfitter's hosted gateway. Set `none` to skip the relay unconditionally.
     required: false
     default: outfitter
   inference-gateway:
     description: >-
-      URL of the Outfitter deployment's workspace inference gateway, for
-      example `https://workspaces.example.com`. Empty, the default, means the
-      job supplies provider credentials itself through `env:`.
+      URL of the Outfitter deployment's inference gateway, for example
+      `https://inference.example.com`. Empty, the default, means Outfitter's
+      hosted gateway, `https://inference.ai-outfitter.com`, unless the step's
+      `env:` carries provider credentials, which the job then uses itself.
     required: false
     default: ""
   github-token:
@@ -332,26 +336,39 @@ runs:
       env:
         INFERENCE_INPUT: ${{ inputs.inference }}
         INFERENCE_GATEWAY: ${{ inputs.inference-gateway }}
+        HOSTED_GATEWAY: https://inference.ai-outfitter.com
       run: |
         if [ "$INFERENCE_INPUT" != "outfitter" ]; then
           echo "::error::inference: unsupported value '$INFERENCE_INPUT' (expected 'outfitter' or 'none')"
           exit 1
         fi
-        # No gateway configured: the workflow is passing provider credentials
-        # through env, as every workflow did before this input existed.
+        # No gateway named: provider credentials in the step's env (set, even
+        # to an empty secret) mean the workflow brings its own provider, as
+        # every workflow did before this input existed. Without any, the run
+        # goes through Outfitter's hosted gateway.
         if [ -z "$INFERENCE_GATEWAY" ]; then
-          echo "::notice::inference: no 'inference-gateway' set; the agent uses the provider credentials in its environment."
-          exit 0
+          credentials="$(compgen -e | grep -E '^(OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENROUTER_API_KEY|SPARK_API_KEY|SPARK_AUTHORIZATION|SPARK_ACCESS_CLIENT_ID|SPARK_ACCESS_CLIENT_SECRET|[A-Z0-9_]+_API_KEY)$' | paste -sd ' ' || true)"
+          if [ -n "$credentials" ]; then
+            echo "::notice::inference: no 'inference-gateway' set; the agent uses the provider credentials in its environment ($credentials)."
+            exit 0
+          fi
+          INFERENCE_GATEWAY="$HOSTED_GATEWAY"
+          echo "::notice::inference: no 'inference-gateway' and no provider credentials in env; inference goes through Outfitter's hosted gateway $HOSTED_GATEWAY."
         fi
         if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-          echo "::error::inference: 'outfitter' authenticates with the job's OIDC identity, but this job cannot request an ID token. Add 'permissions: id-token: write' to the workflow or job, or set 'inference: none'."
+          echo "::error::inference: 'outfitter' authenticates with the job's OIDC identity, but this job cannot request an ID token. Add 'permissions: id-token: write' to the workflow or job, pass provider credentials through the step's 'env:', or set 'inference: none'."
           exit 1
         fi
         port=4141
         log="$RUNNER_TEMP/inference-relay.log"
+        # The relay records a gateway refusal of the job's identity here, so
+        # the final step can say that no Outfitter account is connected.
+        refused="$RUNNER_TEMP/inference-refused.json"
+        rm -f "$refused"
         # Redirect output: a background process that keeps the step's stdout
         # open would hold the step until it exits.
         INFERENCE_GATEWAY_URL="$INFERENCE_GATEWAY" \
+        INFERENCE_REFUSAL_FILE="$refused" \
         ACTIONS_ID_TOKEN_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL" \
         ACTIONS_ID_TOKEN_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
         PORT="$port" \
@@ -380,6 +397,7 @@ runs:
         {
           echo "OUTFITTER_INFERENCE_TOKEN=relay"
           echo "OUTFITTER_INFERENCE_BASE_URL=http://127.0.0.1:$port/v1"
+          echo "OUTFITTER_INFERENCE_GATEWAY=$INFERENCE_GATEWAY"
           echo "INFERENCE_RELAY_PID=$pid"
         } >> "$GITHUB_ENV"
 
@@ -458,10 +476,53 @@ runs:
         path: ${{ runner.temp }}/outfitter-transcript/
         if-no-files-found: ignore
 
+    # Also the place a gateway refusal of the job's identity is reported: the
+    # agent saw only 403s, so the run says on the issue or pull request that
+    # no Outfitter account is connected, and fails with the same message.
     - name: Stop inference relay
       if: always()
       shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        HOSTED_GATEWAY: https://inference.ai-outfitter.com
       run: |
         if [ -n "${INFERENCE_RELAY_PID:-}" ]; then
           kill "$INFERENCE_RELAY_PID" 2>/dev/null || true
         fi
+        refused="$RUNNER_TEMP/inference-refused.json"
+        [ -f "$refused" ] || exit 0
+        gateway="${OUTFITTER_INFERENCE_GATEWAY:-$HOSTED_GATEWAY}"
+        owner="$GITHUB_REPOSITORY_OWNER"
+        if [ "$gateway" = "$HOSTED_GATEWAY" ]; then
+          connect="Sign in at https://ai-outfitter.com and connect the GitHub account \`$owner\` to an Outfitter organization"
+        else
+          connect="Connect the GitHub account \`$owner\` to an organization on the Outfitter deployment behind $gateway"
+        fi
+        message="No Outfitter account is connected for $owner: the inference gateway $gateway refused this job's identity. $connect, or pass provider credentials to ai-outfitter/actions through the step's 'env:'."
+        # The issue or pull request the run is about: the event's, or the
+        # ISSUE_NUMBER / PR_NUMBER a dispatched workflow sets in its env.
+        number=""
+        if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+          number="$(jq -r '.pull_request.number // .issue.number // empty' "$GITHUB_EVENT_PATH")"
+        fi
+        [ -n "$number" ] || number="${PR_NUMBER:-${ISSUE_NUMBER:-}}"
+        marker="<!-- outfitter-inference-unconnected -->"
+        case "$number" in
+          ''|*[!0-9]*) echo "::warning::inference: no issue or pull request to comment on." ;;
+          *)
+            if gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$number/comments" --jq '.[].body' 2>/dev/null | grep -qF "$marker"; then
+              echo "The run's issue or pull request already carries the comment."
+            else
+              body="$marker
+        **No Outfitter account is connected for \`$owner\`.**
+
+        This run routed its inference through the Outfitter gateway \`$gateway\`, which refused the job's GitHub identity: no Outfitter organization is connected to \`$owner\`. $connect, or pass provider credentials to \`ai-outfitter/actions\` through the step's \`env:\`.
+
+        Reported by [ai-outfitter/actions](https://github.com/ai-outfitter/actions) from workflow run [$GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+              gh api "repos/$GITHUB_REPOSITORY/issues/$number/comments" -f body="$body" > /dev/null \
+                || echo "::warning::inference: could not comment on #$number (does the token have issues: write or pull-requests: write?)."
+            fi
+            ;;
+        esac
+        echo "::error::inference: $message"
+        exit 1
