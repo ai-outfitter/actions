@@ -6,7 +6,10 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { after, afterEach, before, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -43,9 +46,9 @@ function fakeIdTokenEndpoint() {
 }
 
 // The gateway: records the bearer and echoes the request body back as a
-// server-sent-event stream, one chunk at a time.
+// server-sent-event stream, one chunk at a time, or refuses with `refuse`.
 function fakeGateway() {
-  const state = { requests: [] };
+  const state = { requests: [], refuse: null };
   const ready = listen(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -54,6 +57,10 @@ function fakeGateway() {
       authorization: req.headers.authorization,
       body: Buffer.concat(chunks).toString("utf8"),
     });
+    if (state.refuse) {
+      const [status, error] = state.refuse;
+      return res.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify({ error }));
+    }
     res.writeHead(200, { "Content-Type": "text/event-stream" });
     for (const line of ["data: one\n\n", "data: two\n\n", "data: [DONE]\n\n"]) {
       res.write(line);
@@ -85,6 +92,8 @@ describe("inference relay", () => {
   const idp = fakeIdTokenEndpoint();
   const gateway = fakeGateway();
   let idpServer, gatewayServer, relay;
+  const scratch = mkdtempSync(join(tmpdir(), "inference-relay-"));
+  const refusalFile = join(scratch, "refused.json");
 
   before(async () => {
     [idpServer, gatewayServer] = await Promise.all([idp.ready, gateway.ready]);
@@ -93,6 +102,7 @@ describe("inference relay", () => {
   after(() => {
     idpServer?.server.close();
     gatewayServer?.server.close();
+    rmSync(scratch, { recursive: true, force: true });
   });
 
   // A fresh relay per test, so no test inherits another's cached token.
@@ -102,8 +112,11 @@ describe("inference relay", () => {
     idp.state.mints = 0;
     idp.state.requests.length = 0;
     gateway.state.requests.length = 0;
+    gateway.state.refuse = null;
+    rmSync(refusalFile, { force: true });
     relay = await startRelay({
       INFERENCE_GATEWAY_URL: `${gatewayServer.url}/`,
+      INFERENCE_REFUSAL_FILE: refusalFile,
       ACTIONS_ID_TOKEN_REQUEST_URL: `${idpServer.url}/token?api-version=2.0`,
       ACTIONS_ID_TOKEN_REQUEST_TOKEN: "runner-request-token",
     });
@@ -197,6 +210,25 @@ describe("inference relay", () => {
     const response = await complete("{}");
     assert.equal(response.status, 503);
     assert.equal(gateway.state.requests.length, 1);
+  });
+
+  test("passes a refused identity through and records an unconnected repository", async () => {
+    // The gateway's answer to a repository no Outfitter organization is
+    // connected to: the agent sees it as is, and the action learns of it.
+    gateway.state.refuse = [403, "Unknown inference principal"];
+    const response = await complete("{}");
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), { error: "Unknown inference principal" });
+    assert.deepEqual(JSON.parse(readFileSync(refusalFile, "utf8")), { status: 403, error: "Unknown inference principal" });
+
+    // Any other refusal reaches the agent but is not an unconnected account.
+    rmSync(refusalFile, { force: true });
+    gateway.state.refuse = [403, "No active workflow run"];
+    assert.equal((await complete("{}")).status, 403);
+    assert.equal(existsSync(refusalFile), false);
+    gateway.state.refuse = [401, "Unauthorized"];
+    assert.equal((await complete("{}")).status, 401);
+    assert.equal(existsSync(refusalFile), false);
   });
 
   test("answers 404 for anything else", async () => {

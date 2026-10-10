@@ -7,6 +7,7 @@
 //
 // Node 20+, no dependencies. Started in the background by action.yml.
 
+import { writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
 
@@ -23,6 +24,11 @@ const audience = process.env.INFERENCE_TOKEN_AUDIENCE || "outfitter-inference";
 // Refresh this long before the token expires so a request in flight never
 // reaches the gateway with a token that lapses on the way.
 const refreshMarginMs = 60_000;
+// Where a gateway refusal of the job's identity is recorded, for action.yml
+// to report once the run is over: the gateway's status and error, nothing else.
+const refusalFile = process.env.INFERENCE_REFUSAL_FILE;
+// The gateway's answer to a repository no Outfitter organization is connected to.
+const UNCONNECTED = "Unknown inference principal";
 
 const json = (res, status, value) =>
   res.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(value));
@@ -105,6 +111,29 @@ async function relay(req, res) {
   if (upstream.status >= 300 && upstream.status < 400) {
     await upstream.body?.cancel();
     return json(res, 502, { error: "Inference gateway redirect rejected" });
+  }
+  // A refused identity is passed to the agent as is, and recorded so the
+  // action can say that no Outfitter account is connected.
+  if (upstream.status === 403) {
+    const text = await upstream.text();
+    let error;
+    try {
+      error = JSON.parse(text)?.error;
+    } catch {}
+    console.error(`inference-relay: the gateway refused the job's identity (403${typeof error === "string" ? ` ${error}` : ""})`);
+    if (refusalFile && error === UNCONNECTED) {
+      try {
+        writeFileSync(refusalFile, JSON.stringify({ status: 403, error }));
+      } catch (failure) {
+        console.error(`inference-relay: could not record the refusal: ${failure.message}`);
+      }
+    }
+    return res
+      .writeHead(403, {
+        "Content-Type": upstream.headers.get("content-type") || "application/json",
+        "Cache-Control": "no-store",
+      })
+      .end(text);
   }
   res.writeHead(upstream.status, {
     "Content-Type": upstream.headers.get("content-type") || "application/json",

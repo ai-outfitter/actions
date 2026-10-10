@@ -97,8 +97,8 @@ profile and Actions job for every situation. See
 | `source-ref` | no | — | Tag/branch/commit to pin a remote source. Pin catalogs you don't own. |
 | `harness` | no | `pi` | Harness to launch: `pi`, `claude`, or `codex`. |
 | `browser` | no | `none` | `chrome` provides a Chromium binary for the run and exports `CHROME_PATH`/`PLAYWRIGHT_MCP_EXECUTABLE_PATH`/`PUPPETEER_EXECUTABLE_PATH` for browser MCP servers. See [Browser access](#browser-access). |
-| `inference` | no | `outfitter` | `outfitter` routes the agent's `outfitter` provider through the Outfitter inference gateway with the job's OIDC identity (needs `permissions: id-token: write`); `none` leaves provider credentials to `env:`. See [Inference through the Outfitter gateway](#inference-through-the-outfitter-gateway). |
-| `inference-gateway` | when `inference: outfitter` | — | The Outfitter deployment's workspace gateway URL. |
+| `inference` | no | `outfitter` | `outfitter` routes the agent's `outfitter` provider through the Outfitter inference gateway with the job's OIDC identity (needs `permissions: id-token: write`), unless the step's `env:` carries provider credentials, which the job then uses itself; `none` always leaves inference to `env:`. See [Inference through the Outfitter gateway](#inference-through-the-outfitter-gateway). |
+| `inference-gateway` | no | Outfitter's hosted gateway, `https://inference.ai-outfitter.com` | Your own Outfitter deployment's inference gateway URL. |
 | `github-token` | no | `github.token` | Token exported as `GH_TOKEN`/`GITHUB_TOKEN` for the agent's `gh`/`git` calls. |
 | `git-user-name` / `git-user-email` | no | — | Git identity for commits the agent makes. |
 | `outfitter-version` | no | `latest` | `@ai-outfitter/outfitter` version to install. |
@@ -106,19 +106,25 @@ profile and Actions job for every situation. See
 | `working-directory` | no | `.` | Directory the agent runs in. |
 | `transcript-artifact` | no | `outfitter-transcript` | Artifact name for the agent's full session transcript as self-contained HTML (pi only). `""` disables. |
 
-Without an `inference-gateway`, model provider credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) are passed as `env:` on the step, matching whatever provider the profile's `controls` select. Store them as repository or organization secrets.
+To bring your own model provider instead, pass its credentials (e.g. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) as `env:` on the step, matching whatever provider the profile's `controls` select, and store them as repository or organization secrets. A step with provider credentials in its `env:` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `SPARK_API_KEY`, `SPARK_AUTHORIZATION`, `SPARK_ACCESS_CLIENT_ID` or any `*_API_KEY`, set even to an empty secret) and no `inference-gateway` skips the gateway.
 
 ## Inference through the Outfitter gateway
 
 With `inference: outfitter` (the default), the agent needs no provider
 secrets. The action starts a small relay on `127.0.0.1:4141` before the agent
 runs. The relay mints the job's GitHub Actions OIDC ID token (audience
-`outfitter-inference`) and forwards chat completions to your Outfitter
-deployment's inference gateway with that token as the bearer. The gateway
-verifies the token and attributes usage to the Outfitter organization
-connected to the repository's GitHub owner.
+`outfitter-inference`) and forwards chat completions to the Outfitter
+inference gateway with that token as the bearer: Outfitter's hosted gateway,
+`https://inference.ai-outfitter.com`, unless `inference-gateway` names your
+own deployment's. The gateway verifies the token and attributes usage to the
+Outfitter organization connected to the repository's GitHub owner; sign in at
+https://ai-outfitter.com to connect one. When no organization is connected,
+the gateway refuses the job, and the action comments on the run's issue or
+pull request that no Outfitter account is configured for the owner (and
+fails the run with the same message).
 
-Grant the job `id-token: write` and name the gateway:
+Grant the job `id-token: write`; name `inference-gateway` only for your own
+deployment:
 
 ```yaml
 permissions:
@@ -134,7 +140,7 @@ jobs:
       - uses: ai-outfitter/actions@v1
         with:
           agent: reviewer
-          inference-gateway: https://workspaces.example.com
+          # inference-gateway: https://inference.example.com  # your own deployment
           prompt: >-
             Review pull request #${{ github.event.pull_request.number }}.
 ```
@@ -157,8 +163,9 @@ provider, and select its models from the agent (`model: outfitter/<model>`):
 
 `OUTFITTER_INFERENCE_TOKEN` is the placeholder `relay`; the real token never
 leaves the relay process. The action also exports
-`OUTFITTER_INFERENCE_BASE_URL`. Omit `inference-gateway` to keep using provider
-keys through `env:`. See [docs/inference-gateway.md](docs/inference-gateway.md)
+`OUTFITTER_INFERENCE_BASE_URL` and `OUTFITTER_INFERENCE_GATEWAY`. To keep using
+provider keys, pass them through `env:` (the gateway is then skipped) or set
+`inference: none`. See [docs/inference-gateway.md](docs/inference-gateway.md)
 for how the relay works and how to troubleshoot it.
 
 ## Browser access
