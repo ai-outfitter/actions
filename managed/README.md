@@ -69,3 +69,22 @@ until dispatch, resident review, scoped mutations and evidence delivery are read
 At cutover, preserve `test.yml` and repository protections and activate only one
 issue chain. Keep this action and its dependencies draft until the real workflow
 has been demonstrated; a generated entrypoint is not live execution evidence.
+
+## Trusted checkout synchronization (not wired yet)
+
+`checkout.mjs` is an internal adapter primitive, not an agent tool. Given a
+previously authorized repository/branch/parent/commit receipt, it fetches into a
+fresh temporary Git repository with global and task configuration excluded.
+A trusted GitHub API read verifies the immutable repository ID before fetch.
+Only these network requests receive the job's read-only credential. It verifies
+the fetched commit, its single parent and current remote branch before moving
+verified objects into the trusted task checkout without credentials. Explicit
+Git/work-tree paths override repository-selected worktree configuration. The
+final actual HEAD and clean working tree must match before it returns.
+
+This primitive does not establish receipt authority. Runtime integration must
+first bind an owner-approved capability effect to the lease, invocation ID,
+repository and expected parent; an arbitrary tool result or model-provided SHA
+must never call it. That shared effect contract is pending. Nothing invokes this
+helper from the managed runner yet, so the existing upload path is unchanged.
+Failures stop synchronization and expose no Git stderr or credential values.
