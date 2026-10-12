@@ -1,0 +1,13 @@
+{
+  "name": "@ai-outfitter/actions-managed-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.3",
+    "ajv": "8.20.0"
+  }
+}

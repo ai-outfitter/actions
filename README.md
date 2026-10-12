@@ -285,3 +285,7 @@ Outfitter composes the agent's configuration and launches `pi` in print mode; `p
 ## License
 
 MIT
+
+For owner-approved workflow nodes without catalog discovery, see the
+[managed node action](managed/README.md). Its gateway context/capability integration
+is still a draft and must be deployed before live use.

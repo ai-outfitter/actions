@@ -1,0 +1,44 @@
+name: Run approved Outfitter node
+description: Execute a server-approved node with its pinned profile and broker capabilities.
+inputs:
+  gateway:
+    description: Trusted Outfitter gateway HTTPS origin.
+    required: true
+  inference-url:
+    description: Inference API base URL on the trusted gateway origin.
+    required: true
+  adapter-root:
+    description: Clean trusted webapp adapter checkout, separate from the task checkout.
+    required: true
+  adapter-sha:
+    description: Exact approved 40-character adapter commit SHA.
+    required: true
+  run-id:
+    required: true
+    description: Dispatched run ID.
+  node-id:
+    required: true
+    description: Dispatched node ID.
+  attempt-id:
+    required: true
+    description: Dispatched attempt ID.
+runs:
+  using: composite
+  steps:
+    - name: Install pinned managed harness
+      shell: bash
+      env:
+        MANAGED_ACTION_PATH: ${{ github.action_path }}
+      run: npm ci --prefix "$MANAGED_ACTION_PATH" --ignore-scripts
+    - name: Execute approved node
+      shell: bash
+      env:
+        MANAGED_ACTION_PATH: ${{ github.action_path }}
+        OUTFITTER_GATEWAY: ${{ inputs.gateway }}
+        OUTFITTER_INFERENCE_URL: ${{ inputs.inference-url }}
+        OUTFITTER_ADAPTER_ROOT: ${{ inputs.adapter-root }}
+        OUTFITTER_ADAPTER_SHA: ${{ inputs.adapter-sha }}
+        OUTFITTER_RUN_ID: ${{ inputs.run-id }}
+        OUTFITTER_NODE_ID: ${{ inputs.node-id }}
+        OUTFITTER_ATTEMPT_ID: ${{ inputs.attempt-id }}
+      run: node "$MANAGED_ACTION_PATH/cli.mjs"
