@@ -1,20 +1,11 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-import { execFileSync } from "node:child_process";
 import { runManagedNode } from "./runner.mjs";
 import { piHarness } from "./pi.mjs";
+import { workflowClient, actionsIdentity, gatewayOrigin } from "./client.mjs";
 
 let stateDirectory;
 try {
-  const root = await realpath(process.env.OUTFITTER_ADAPTER_ROOT ?? "");
-  const sha = process.env.OUTFITTER_ADAPTER_SHA;
-  if (!/^[a-f0-9]{40}$/.test(sha ?? "")) throw new Error("Pinned adapter revision required");
-  const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  const dirty = execFileSync("git", ["-C", root, "status", "--porcelain", "--untracked-files=all"], { encoding: "utf8" });
-  if (head !== sha || dirty) throw new Error("Adapter checkout is not the pinned clean revision");
-  const modulePath = join(root, "catalog/workflows/issue-to-triage-resident/actions/client.mjs");
-  const { workflowClient, actionsIdentity, gatewayOrigin } = await import(pathToFileURL(modulePath));
   const gateway = gatewayOrigin(process.env.OUTFITTER_GATEWAY);
   const inferenceURL = new URL(process.env.OUTFITTER_INFERENCE_URL);
   if (inferenceURL.protocol !== "https:" || inferenceURL.origin !== new URL(gateway).origin ||

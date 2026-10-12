@@ -7,12 +7,6 @@ inputs:
   inference-url:
     description: Inference API base URL on the trusted gateway origin.
     required: true
-  adapter-root:
-    description: Clean trusted webapp adapter checkout, separate from the task checkout.
-    required: true
-  adapter-sha:
-    description: Exact approved 40-character adapter commit SHA.
-    required: true
   run-id:
     required: true
     description: Dispatched run ID.
@@ -36,8 +30,6 @@ runs:
         MANAGED_ACTION_PATH: ${{ github.action_path }}
         OUTFITTER_GATEWAY: ${{ inputs.gateway }}
         OUTFITTER_INFERENCE_URL: ${{ inputs.inference-url }}
-        OUTFITTER_ADAPTER_ROOT: ${{ inputs.adapter-root }}
-        OUTFITTER_ADAPTER_SHA: ${{ inputs.adapter-sha }}
         OUTFITTER_RUN_ID: ${{ inputs.run-id }}
         OUTFITTER_NODE_ID: ${{ inputs.node-id }}
         OUTFITTER_ATTEMPT_ID: ${{ inputs.attempt-id }}
