@@ -7,6 +7,7 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
+    "@actions/artifact": "2.3.2",
     "@earendil-works/pi-coding-agent": "0.80.3",
     "ajv": "8.20.0"
   }

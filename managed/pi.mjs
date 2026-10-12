@@ -1,7 +1,7 @@
 import { AuthStorage, createAgentSession, createExtensionRuntime, ModelRegistry, SessionManager, SettingsManager } from "@earendil-works/pi-coding-agent";
 
 /** No persisted settings, session restoration, built-in tools or repository resource discovery. */
-export async function piHarness({ model, systemPrompt, tools, inference, prompt }) {
+export async function piHarness({ model, systemPrompt, tools, inference, prompt, onTranscript }) {
   const auth = AuthStorage.inMemory();
   const registry = ModelRegistry.inMemory(auth);
   registry.registerProvider("outfitter-managed", {
@@ -41,5 +41,8 @@ export async function piHarness({ model, systemPrompt, tools, inference, prompt 
     await session.prompt(prompt);
     const last = session.messages.findLast((message) => message.role === "assistant");
     if (!last || ["error", "aborted"].includes(last.stopReason)) throw new Error("Managed inference failed");
-  } finally { clearTimeout(timer); session.dispose(); }
+  } finally {
+    clearTimeout(timer);
+    try { await onTranscript?.(structuredClone(session.messages)); } finally { session.dispose(); }
+  }
 }

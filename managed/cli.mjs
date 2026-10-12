@@ -1,6 +1,7 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { runManagedNode } from "./runner.mjs";
+import { githubEvidence } from "./evidence.mjs";
 import { piHarness } from "./pi.mjs";
 import { workflowClient, actionsIdentity, gatewayOrigin } from "./client.mjs";
 
@@ -15,6 +16,7 @@ try {
   stateDirectory = await mkdtemp(join(tempRoot, "outfitter-managed-"));
   const expected = { runId: process.env.OUTFITTER_RUN_ID, nodeId: process.env.OUTFITTER_NODE_ID, attemptId: process.env.OUTFITTER_ATTEMPT_ID };
   await runManagedNode({ client: workflowClient({ gateway }), expected, harness: piHarness, checkout: process.env.GITHUB_WORKSPACE,
+    retainEvidence: githubEvidence({ tempRoot }),
     inference: { url: inferenceURL.href.replace(/\/$/, ""), identity: actionsIdentity, stateDirectory } });
   process.stdout.write("Managed node completed.\n");
 } catch {

@@ -20,8 +20,8 @@ job sandbox with a small environment allowlist and bounded time/output. **The jo
 sandbox is their isolation boundary: a working directory is not a filesystem or
 network jail.** Use ephemeral isolated runners, never a privileged shared host.
 Capability argument/result byte counts and SHA256 digests (not raw contents) are
-uploaded as lease-scoped audit evidence before successful completion; each node
-is limited to 1000 capability calls. Artifact upload failure prevents completion.
+retained with the Pi transcript in a GitHub Actions artifact before successful completion; each node
+is limited to 1000 capability calls. Artifact upload failure prevents completion. The managed entrypoint uses GitHub run-owned artifacts, not platform R2/S3 storage. Each archive includes managed run/node/attempt, model/profile digest and actual checkout HEAD metadata. Its artifact ID/URL and run identity are written to job logs and summary for independent review. Known runtime credentials and common token formats are redacted from transcripts. The generic S3 upload client remains available for separately configured capabilities.
 
 The Pi SDK uses an in-memory model/auth/settings registry, no built-in tools and
 no resource discovery. Only approved capabilities and a typed `submit_outputs`
@@ -30,7 +30,7 @@ completion. The harness currently caps its context at 32768 and output at 4096
 text tokens; these are conservative runner limits, not upstream model specs.
 
 Integration remains incomplete until approved lease context, scoped tools and
-artifact endpoints, dispatch and resident transports are deployed and validated. Neither
+dispatch and resident transports are deployed and validated. Neither
 mocked provider tests nor the real Pi SDK loop against a local fake inference
 server proves live issue-to-merge operation. The bundled client was promoted unchanged from the reviewed workflow adapter
 at webapp commit `0ca5494d95c559e9e13d1d8b0c7e975f81ef0844`; the old webapp CLI
@@ -69,3 +69,5 @@ until dispatch, resident review, scoped mutations and evidence delivery are read
 At cutover, preserve `test.yml` and repository protections and activate only one
 issue chain. Keep this action and its dependencies draft until the real workflow
 has been demonstrated; a generated entrypoint is not live execution evidence.
+
+The gateway and inference endpoint must share an HTTPS origin. For the deployed gateway use `https://inference.ai-outfitter.com` and inference base `https://inference.ai-outfitter.com/inference/v1`; node callbacks use `/workflow/v1`. The reviewer is a separate resident binding, with its own repository credentials and model/profile, not this Actions engineer. GitHub artifacts are retained for seven days (subject to repository policy); reviewer Actions read access is required. This does not upload PR images to R2 or establish that the checkout HEAD equals a broker-created PR head.

@@ -14,6 +14,7 @@ test("real Pi session uses only pinned prompt/model/tools and fresh gateway iden
   let calls = 0;
   let tokens = 0;
   let submitted;
+  let transcript;
   const observed = [];
   const server = createServer(async (request, response) => {
     const chunks = [];
@@ -27,7 +28,7 @@ test("real Pi session uses only pinned prompt/model/tools and fresh gateway iden
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
-    await piHarness({ model: "gpt-6-luna", systemPrompt: "README.md", prompt: "Complete task",
+    await piHarness({ onTranscript: (messages) => { transcript = messages; }, model: "gpt-6-luna", systemPrompt: "README.md", prompt: "Complete task",
       inference: { url: `http://127.0.0.1:${server.address().port}/v1`, stateDirectory: directory, identity: async () => `fresh-${++tokens}` },
       tools: [{ name: "submit_outputs", label: "Submit", description: "Submit outputs", parameters: { type: "object", properties: { summary: { type: "string" } }, required: ["summary"] },
         execute: async (_id, args) => { submitted = args; return { content: [{ type: "text", text: "Saved" }], details: {} }; } }] });
@@ -38,6 +39,9 @@ test("real Pi session uses only pinned prompt/model/tools and fresh gateway iden
       assert.doesNotMatch(JSON.stringify(body), /LOCAL_CONTEXT_MUST_NOT_LOAD|wrong-model|Run an \[Outfitter/);
       assert.deepEqual(body.tools.map((tool) => tool.function.name), ["submit_outputs"]);
     }
+    assert.ok(transcript.some((message) => message.role === "toolResult"));
+    assert.ok(transcript.some((message) => message.role === "assistant"));
+    assert.doesNotMatch(JSON.stringify(transcript), /fresh-1|fresh-2/);
     assert.deepEqual(submitted, { summary: "done" });
     assert.equal(calls, 2);
     assert.equal(tokens, calls);

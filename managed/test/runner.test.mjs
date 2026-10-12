@@ -79,3 +79,24 @@ test("audit derives checkout HEAD from Git instead of submitted evidence", async
     assert.equal(records.at(-1).headSha, actual);
   } finally { await rm(checkout, { recursive: true, force: true }); }
 });
+
+test("GitHub evidence retention precedes completion and failures cannot assert success", async () => {
+  for (const mode of ["success", "retention-failure", "agent-failure"]) {
+    const calls = [];
+    const task = runManagedNode({ client: {claim: async () => lease(), invoke: async () => ({}),
+      upload: () => assert.fail("No platform object storage needed"), complete: async () => calls.push("complete")},
+      retainEvidence: async (_lease, evidence) => {
+        assert.deepEqual(evidence.transcript, [{role:"assistant",content:"captured"}]);
+        assert.equal(evidence.failed, mode === "agent-failure"); calls.push("retain");
+        if (mode === "retention-failure") throw new Error("retention failed");
+      },
+      harness: async ({tools,onTranscript}) => {
+        await tools.at(-1).execute("submit", {summary:"done"});
+        onTranscript([{role:"assistant",content:"captured"}]);
+        if (mode === "agent-failure") throw new Error("agent failed");
+      },
+    });
+    if (mode === "success") { await task; assert.deepEqual(calls, ["retain","complete"]); }
+    else { await assert.rejects(task); assert.deepEqual(calls, ["retain"]); }
+  }
+});

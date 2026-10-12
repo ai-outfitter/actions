@@ -46,7 +46,7 @@ export function approvedContext(lease) {
 }
 
 /** Only a trusted adapter can supply a claimed lease; never accept a context file from the checkout. */
-export async function runManagedNode({ client, expected, harness, inference, checkout, now = Date.now }) {
+export async function runManagedNode({ client, expected, harness, inference, checkout, retainEvidence, now = Date.now }) {
   if (typeof client.invoke !== "function") throw new Error("Managed capability transport is unavailable");
   const lease = await client.claim(expected);
   const context = approvedContext(lease);
@@ -87,18 +87,26 @@ export async function runManagedNode({ client, expected, harness, inference, che
     } });
   // Runtime settings and identity details are configuration, never instructions to the model.
   const { settings: _settings, engineerBinding: _engineer, reviewerBinding: _reviewer, ...inputs } = lease.inputs;
-  await harness({ model: context.model, systemPrompt: context.profile.systemPrompt, tools, inference: { ...inference, expiresAt: lease.expiresAt },
+  let transcript = [];
+  let executionError;
+  try { await harness({ model: context.model, systemPrompt: context.profile.systemPrompt, tools, inference: { ...inference, expiresAt: lease.expiresAt },
+    onTranscript: (messages) => { transcript = messages; },
     prompt: `${lease.instructions}\n\nTask inputs:\n${JSON.stringify(inputs)}\n\nUse submit_outputs when the work is complete.` });
-  if (!submitted) throw new Error("Agent did not submit valid node outputs");
-  if (lease.expiresAt <= now()) throw new Error("Expired node lease");
+  } catch (error) { executionError = error; }
+  if (!submitted) executionError ??= new Error("Agent did not submit valid node outputs");
+  if (lease.expiresAt <= now()) executionError ??= new Error("Expired node lease");
   if (checkout) {
     const { stdout } = await exec("git", ["-C", checkout, "rev-parse", "--verify", "HEAD"], { timeout: 5000, maxBuffer: 1024 });
     const headSha = stdout.trim();
     if (!/^[a-f0-9]{40}$/.test(headSha)) throw new Error("Invalid checkout HEAD");
     audit.push({ type: "checkout", headSha, timestamp: now() });
   }
-  await client.upload(lease, { key: `execution-audit-${createHash("sha256").update(lease.attemptId).digest("hex")}`, filename: "execution-audit.jsonl", contentType: "application/x-ndjson", retentionSeconds: 604800 },
+  if (retainEvidence) {
+    await retainEvidence(lease, { audit, transcript, model: context.model, profileDigest: context.profile.digest, failed: Boolean(executionError) });
+  } else await client.upload(lease, { key: `execution-audit-${createHash("sha256").update(lease.attemptId).digest("hex")}`, filename: "execution-audit.jsonl", contentType: "application/x-ndjson", retentionSeconds: 604800 },
     Buffer.from(audit.map((entry) => JSON.stringify(entry)).join("\n") + "\n"));
+  if (executionError) throw executionError;
+  if (lease.expiresAt <= now()) throw new Error("Expired node lease");
   await client.complete(lease, submitted);
   return { accepted: true };
 }
