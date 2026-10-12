@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
 import Ajv from "ajv";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+const exec = promisify(execFile);
 import { workspaceExecutor } from "./workspace.mjs";
 
 const object = (value) => value && typeof value === "object" && !Array.isArray(value);
@@ -88,7 +91,13 @@ export async function runManagedNode({ client, expected, harness, inference, che
     prompt: `${lease.instructions}\n\nTask inputs:\n${JSON.stringify(inputs)}\n\nUse submit_outputs when the work is complete.` });
   if (!submitted) throw new Error("Agent did not submit valid node outputs");
   if (lease.expiresAt <= now()) throw new Error("Expired node lease");
-  await client.upload(lease, { key: "execution-audit", filename: "execution-audit.jsonl", contentType: "application/x-ndjson", retentionSeconds: 604800 },
+  if (checkout) {
+    const { stdout } = await exec("git", ["-C", checkout, "rev-parse", "--verify", "HEAD"], { timeout: 5000, maxBuffer: 1024 });
+    const headSha = stdout.trim();
+    if (!/^[a-f0-9]{40}$/.test(headSha)) throw new Error("Invalid checkout HEAD");
+    audit.push({ type: "checkout", headSha, timestamp: now() });
+  }
+  await client.upload(lease, { key: `execution-audit-${createHash("sha256").update(lease.attemptId).digest("hex")}`, filename: "execution-audit.jsonl", contentType: "application/x-ndjson", retentionSeconds: 604800 },
     Buffer.from(audit.map((entry) => JSON.stringify(entry)).join("\n") + "\n"));
   await client.complete(lease, submitted);
   return { accepted: true };
