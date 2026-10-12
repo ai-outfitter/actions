@@ -1,0 +1,21 @@
+name: Managed node tests
+on:
+  pull_request:
+    paths: ['managed/**', '.github/workflows/managed-node-tests.yml']
+  push:
+    branches: [main]
+    paths: ['managed/**', '.github/workflows/managed-node-tests.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: managed/package-lock.json
+      - run: npm ci --prefix managed --ignore-scripts
+      - run: npm test --prefix managed
