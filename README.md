@@ -10,6 +10,11 @@ Wire it to any workflow trigger and you have your own Copilot-style reviewer or 
 - **When a PR or issue is assigned to your bot account** — have the agent complete the task and push a PR.
 - **On demand** (`workflow_dispatch`) — start or continue an agent-implemented PR, dispatched by an issue-triage agent, `gh workflow run`, or a local agent.
 
+Estimate the model, runner, retry, and quota lines with the
+[July 2026 Actions pricing snapshot](docs/research/inference-pricing.md). Use
+Outfitter's [cross-runtime cost guide](https://github.com/ai-outfitter/outfitter/blob/main/docs/documentation/cost-estimation.md)
+to compare this Action with a local or Kubernetes deployment.
+
 ## Quick start
 
 ```yaml
